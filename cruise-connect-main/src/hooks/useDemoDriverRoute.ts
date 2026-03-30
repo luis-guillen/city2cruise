@@ -25,16 +25,12 @@ function interpolatePoints(
     const result: Array<{ lat: number; lon: number }> = [];
     for (let i = 0; i <= steps; i++) {
         const targetDist = (i / steps) * totalDist;
-
         let idx = 0;
-        while (idx < distances.length - 1 && distances[idx + 1] < targetDist) {
-            idx++;
-        }
+        while (idx < distances.length - 1 && distances[idx + 1] < targetDist) idx++;
 
         const d1 = distances[idx];
         const d2 = distances[idx + 1] ?? d1;
         const t = d2 === d1 ? 0 : (targetDist - d1) / (d2 - d1);
-
         const p1 = path[idx];
         const p2 = path[idx + 1] ?? p1;
 
@@ -50,23 +46,27 @@ interface UseDemoDriverRouteOptions {
     startPosition: { lat: number; lon: number } | null;
     destination: { lat: number; lon: number } | null;
     active: boolean;
+    requestId: string | null;
+    phase: 'CONFIRMATION_PENDING' | 'IN_PROGRESS' | null;
 }
 
 export function useDemoDriverRoute({
     startPosition,
     destination,
     active,
+    requestId,
+    phase,
 }: UseDemoDriverRouteOptions) {
     const [demoPosition, setDemoPosition] = useState<{ lat: number; lon: number } | null>(null);
     const [isDemoActive, setIsDemoActive] = useState(false);
 
     const wayPointsRef = useRef<Array<{ lat: number; lon: number }>>([]);
+    const rawRouteRef = useRef<Array<{ lat: number; lon: number }>>([]);  // ruta OSRM sin interpolar
     const stepRef = useRef(0);
     const intervalRef = useRef<ReturnType<typeof setInterval>>();
     const currentDestRef = useRef<{ lat: number; lon: number } | null>(null);
     const demoPositionRef = useRef<{ lat: number; lon: number } | null>(null);
 
-    // Mantener ref sincronizada con el estado para usarla dentro del intervalo
     useEffect(() => {
         demoPositionRef.current = demoPosition;
     }, [demoPosition]);
@@ -104,15 +104,25 @@ export function useDemoDriverRoute({
                     retryCount < 2 &&
                     Math.abs(origin.lat - destination.lat) > 0.001
                 ) {
-                    console.warn(
-                        `[Simulation] OSRM returned straight line, retrying... (${retryCount + 1})`
-                    );
+                    console.warn(`[Simulation] OSRM straight line, retrying... (${retryCount + 1})`);
                     setTimeout(() => fetchAndStart(retryCount + 1), 600);
                     return;
                 }
 
+                // Guardar ruta cruda (para el PC) y la interpolada (para mover el icono)
+                rawRouteRef.current = routeCoords.map(([lat, lon]) => ({ lat, lon }));
                 wayPointsRef.current = interpolatePoints(routeCoords, TOTAL_STEPS);
                 stepRef.current = 0;
+
+                // ── Emitir la ruta completa al PC una sola vez ──
+                if (socket.connected) {
+                    socket.emit('driver:route:update', {
+                        route: rawRouteRef.current,
+                        requestId: requestId ?? null,
+                        phase: phase ?? null,
+                    });
+                }
+
                 setIsDemoActive(true);
                 setDemoPosition(wayPointsRef.current[0]);
 
@@ -121,12 +131,13 @@ export function useDemoDriverRoute({
                     const wp = wayPointsRef.current[stepRef.current];
 
                     if (!wp || stepRef.current >= TOTAL_STEPS) {
-                        // Paso final: emitir exactamente el destino
                         setDemoPosition(destination);
                         if (socket.connected) {
                             socket.emit('driver:location:update', {
                                 lat: destination.lat,
                                 lon: destination.lon,
+                                routeProgress: 1,
+                                routeTail: [],
                             });
                         }
                         clearInterval(intervalRef.current);
@@ -136,8 +147,18 @@ export function useDemoDriverRoute({
                     }
 
                     setDemoPosition(wp);
+
                     if (socket.connected) {
-                        socket.emit('driver:location:update', { lat: wp.lat, lon: wp.lon });
+                        // Emitir posición + índice actual para que el PC recorte la línea
+                        socket.emit('driver:location:update', {
+                            lat: wp.lat,
+                            lon: wp.lon,
+                            routeProgress: stepRef.current / TOTAL_STEPS,
+                            // routeTail: puntos restantes de la ruta cruda desde la pos actual
+                            routeTail: rawRouteRef.current.slice(
+                                Math.floor((stepRef.current / TOTAL_STEPS) * rawRouteRef.current.length)
+                            ),
+                        });
                     }
                 }, STEP_INTERVAL_MS);
             } catch (err) {
@@ -148,9 +169,7 @@ export function useDemoDriverRoute({
         fetchAndStart();
 
         return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-            }
+            if (intervalRef.current) clearInterval(intervalRef.current);
         };
     }, [active, startPosition?.lat, startPosition?.lon, destination?.lat, destination?.lon]);
 

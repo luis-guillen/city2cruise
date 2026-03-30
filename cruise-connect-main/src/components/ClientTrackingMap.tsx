@@ -2,7 +2,6 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import { useState, useEffect, useRef } from 'react';
 import { Navigation } from 'lucide-react';
 import L from 'leaflet';
-import { getOSRMRoute } from '@/utils/routing';
 import { PickupRequest } from '@/services/api';
 import GlassCard from './ios/GlassCard';
 
@@ -56,32 +55,6 @@ function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/**
- * Recorta la ruta completa devolviendo solo los puntos desde la posición
- * actual del driver hasta el final. Así la línea siempre empieza en el icono.
- */
-function trimRouteFromDriver(
-  driverPos: { lat: number; lon: number },
-  route: [number, number][]
-): [number, number][] {
-  if (route.length < 2) return route;
-
-  let closestIdx = 0;
-  let minDist = Infinity;
-
-  for (let i = 0; i < route.length - 1; i++) {
-    const [lat, lon] = route[i];
-    const d = Math.abs(lat - driverPos.lat) + Math.abs(lon - driverPos.lon);
-    if (d < minDist) {
-      minDist = d;
-      closestIdx = i;
-    }
-  }
-
-  // El primer punto de la línea es EXACTAMENTE donde está el driver
-  return [[driverPos.lat, driverPos.lon], ...route.slice(closestIdx + 1)];
-}
-
 interface ClientTrackingMapProps {
   request?: PickupRequest | null;
   driverName?: string;
@@ -94,12 +67,8 @@ interface ClientTrackingMapProps {
 function MapClickHandler({ onSelect }: { onSelect: (lat: number, lon: number) => void }) {
   const map = useMap();
   useEffect(() => {
-    map.on('click', (e) => {
-      onSelect(e.latlng.lat, e.latlng.lng);
-    });
-    return () => {
-      map.off('click');
-    };
+    map.on('click', (e) => { onSelect(e.latlng.lat, e.latlng.lng); });
+    return () => { map.off('click'); };
   }, [map, onSelect]);
   return null;
 }
@@ -117,84 +86,68 @@ export default function ClientTrackingMap({
       ? { lat: request.driverLatitude, lon: request.driverLongitude }
       : null
   );
+
+  // La ruta que dibujamos: viene del móvil vía socket, ya recortada
   const [route, setRoute] = useState<[number, number][]>([]);
 
-  // Guardamos la ruta OSRM completa para poder recortarla sin re-pedirla
+  // routeTail llega en cada tick de location:update ya recortada desde el driver
+  // driver:route llega una vez al inicio con la ruta completa (fallback)
   const fullRouteRef = useRef<[number, number][]>([]);
-  const lastRouteOriginRef = useRef<{ lat: number; lon: number } | null>(null);
-  const lastStatusRef = useRef<string | null>(null);
 
-  // 1. Escuchar eventos de ubicación en tiempo real del socket
+  // 1. Recibir la ruta completa cuando el driver arranca (evento driver:route)
   useEffect(() => {
     const handler = (e: Event) => {
-      const { lat, lon } = (e as CustomEvent).detail;
-      if (lat && lon) {
-        setDriverPos({ lat, lon });
+      const { route: pts } = (e as CustomEvent).detail as {
+        route: Array<{ lat: number; lon: number }>;
+        requestId?: string | null;
+        phase?: string | null;
+      };
+      if (!Array.isArray(pts) || pts.length < 2) return;
+      const coords: [number, number][] = pts.map(p => [p.lat, p.lon]);
+      fullRouteRef.current = coords;
+      // Mostrar ruta completa hasta que llegue el primer tick de posición
+      setRoute(coords);
+    };
+    window.addEventListener('driver:route:received', handler);
+    return () => window.removeEventListener('driver:route:received', handler);
+  }, []);
+
+  // 2. Recibir posición + routeTail en cada tick (evento driver:location)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { lat, lon, routeTail } = (e as CustomEvent).detail as {
+        lat: number;
+        lon: number;
+        routeTail?: Array<{ lat: number; lon: number }> | null;
+      };
+      if (!lat || !lon) return;
+
+      setDriverPos({ lat, lon });
+
+      if (Array.isArray(routeTail) && routeTail.length > 1) {
+        // routeTail viene directo del móvil: ya es el tramo restante exacto
+        const tail: [number, number][] = [
+          [lat, lon],
+          ...routeTail.map(p => [p.lat, p.lon] as [number, number]),
+        ];
+        setRoute(tail);
+      } else if (fullRouteRef.current.length > 1) {
+        // Fallback: si no hay routeTail, mostrar ruta completa guardada
+        setRoute([[lat, lon], ...fullRouteRef.current.slice(1)]);
       }
     };
     window.addEventListener('driver:location:received', handler);
     return () => window.removeEventListener('driver:location:received', handler);
   }, []);
 
-  // 2. Sincronizar desde el objeto request (por si se refresca la página)
+  // 3. Sincronizar posición inicial desde request (refresco de página)
   useEffect(() => {
     if (request?.driverLatitude && request?.driverLongitude) {
       setDriverPos({ lat: request.driverLatitude, lon: request.driverLongitude });
     }
   }, [request?.id, request?.driverLatitude, request?.driverLongitude]);
 
-  // 3. Gestionar la ruta: re-pedir a OSRM solo cuando cambia el status o el driver
-  //    se aleja mucho; en cada update intermedio solo recortamos la ruta guardada.
-  useEffect(() => {
-    if (!driverPos || !request) return;
-
-    const statusChanged = lastStatusRef.current !== request.status;
-    const prev = lastRouteOriginRef.current;
-
-    // Solo re-pedimos ruta a OSRM si cambia el status o si el driver está >500m
-    // del punto de origen de la última ruta pedida
-    const movedFarFromRoute =
-      !prev ||
-      Math.abs(driverPos.lat - prev.lat) > 0.005 ||
-      Math.abs(driverPos.lon - prev.lon) > 0.005;
-
-    if (!statusChanged && !movedFarFromRoute) {
-      // Reutilizar ruta guardada, solo recortar desde la posición actual
-      if (fullRouteRef.current.length > 1) {
-        const trimmed = trimRouteFromDriver(driverPos, fullRouteRef.current);
-        setRoute(trimmed);
-      }
-      return;
-    }
-
-    lastRouteOriginRef.current = { ...driverPos };
-    lastStatusRef.current = request.status;
-
-    const destination =
-      request.status === 'CONFIRMATION_PENDING'
-        ? { lat: request.latitude || 28.12, lon: request.longitude || -15.43 }
-        : LOCKER_DESTINATION;
-
-    const fetchWithRetry = async (retries = 3): Promise<void> => {
-      try {
-        const coords = await getOSRMRoute(driverPos, destination);
-        if (coords.length <= 2 && retries > 0) {
-          setTimeout(() => fetchWithRetry(retries - 1), 800);
-          return;
-        }
-        fullRouteRef.current = coords; // guardar ruta completa para recortes futuros
-        const trimmed = trimRouteFromDriver(driverPos, coords);
-        setRoute(trimmed);
-      } catch {
-        if (retries > 0) setTimeout(() => fetchWithRetry(retries - 1), 800);
-        else setRoute([]);
-      }
-    };
-
-    fetchWithRetry();
-  }, [driverPos?.lat, driverPos?.lon, request?.status, request?.latitude, request?.longitude]);
-
-  // ── Modo seleccionable (picker en el dashboard) ──
+  // ── Modo seleccionable ──
   if (selectable) {
     return (
       <div className="h-full w-full">
@@ -234,16 +187,11 @@ export default function ClientTrackingMap({
       ? { lat: request?.latitude || 28.12, lon: request?.longitude || -15.43 }
       : LOCKER_DESTINATION;
 
-  const distance = getDistanceKm(
-    driverPos.lat,
-    driverPos.lon,
-    destination.lat,
-    destination.lon
-  );
+  const distance = getDistanceKm(driverPos.lat, driverPos.lon, destination.lat, destination.lon);
 
   return (
     <div className="rounded-[20px] overflow-hidden shadow-lg shadow-black/10 animate-scale-in bg-white/50 backdrop-blur-md border border-white/20">
-      {/* Header Info */}
+      {/* Header */}
       <div className="glass-ultra px-4 py-3 flex items-center justify-between border-b border-black/5">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[var(--ios-green)] animate-pulse" />
@@ -259,7 +207,7 @@ export default function ClientTrackingMap({
         </span>
       </div>
 
-      {/* Tracking Map */}
+      {/* Mapa */}
       <MapContainer
         center={[driverPos.lat, driverPos.lon]}
         zoom={14}
@@ -272,16 +220,12 @@ export default function ClientTrackingMap({
         />
         <MapUpdater center={[driverPos.lat, driverPos.lon]} />
 
-        {/* Marker del Conductor */}
         <Marker position={[driverPos.lat, driverPos.lon]} icon={driverIcon}>
           <Popup>
-            <div className="text-[13px]">
-              <strong>{driverName || 'Conductor'}</strong>
-            </div>
+            <div className="text-[13px]"><strong>{driverName || 'Conductor'}</strong></div>
           </Popup>
         </Marker>
 
-        {/* Marker del Destino (Usuario o Puerto) */}
         <Marker
           position={[destination.lat, destination.lon]}
           icon={request?.status === 'CONFIRMATION_PENDING' ? userIcon : lockerIcon}
@@ -289,15 +233,12 @@ export default function ClientTrackingMap({
           <Popup>
             <div className="text-[13px]">
               <strong>
-                {request?.status === 'CONFIRMATION_PENDING'
-                  ? 'Tu ubicación'
-                  : 'Puerto (Taquillas)'}
+                {request?.status === 'CONFIRMATION_PENDING' ? 'Tu ubicación' : 'Puerto (Taquillas)'}
               </strong>
             </div>
           </Popup>
         </Marker>
 
-        {/* Polilínea de la ruta real por calles, recortada desde el driver */}
         {route.length > 1 && (
           <Polyline
             positions={route}

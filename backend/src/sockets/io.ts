@@ -14,7 +14,27 @@ export interface ActiveDriver {
     lon: number;
 }
 
+interface DriverLocationPayload {
+    lat: number;
+    lon: number;
+    routeProgress?: number;
+    routeTail?: Array<{ lat: number; lon: number }>;
+}
+
+interface DriverRoutePoint {
+    lat: number;
+    lon: number;
+}
+
+interface DriverRoutePayload {
+    route: DriverRoutePoint[];
+    requestId?: string | number | null;
+    phase?: 'CONFIRMATION_PENDING' | 'IN_PROGRESS' | null;
+}
+
 const activeDrivers = new Map<number, ActiveDriver>();
+const cachedDriverRoutes = new Map<number, DriverRoutePayload>();
+const lastRouteRelayMetaByDriver = new Map<number, { key: string; at: number }>();
 
 export const getActiveDrivers = (): ActiveDriver[] => {
     return Array.from(activeDrivers.values());
@@ -25,6 +45,38 @@ export const updateActiveDriverLocation = (userId: number, lat: number, lon: num
     if (driver) {
         activeDrivers.set(userId, { ...driver, lat, lon });
     }
+};
+
+const findActiveClientIdByDriver = async (driverId: number): Promise<number | null> => {
+    const { rows } = await db.query(
+        `SELECT client_id FROM pickup_requests
+         WHERE driver_id = $1 AND status IN ('CONFIRMATION_PENDING', 'IN_PROGRESS')
+         LIMIT 1`,
+        [driverId]
+    );
+
+    if (rows.length === 0) return null;
+
+    const clientId = Number(rows[0]?.client_id);
+    return Number.isFinite(clientId) ? clientId : null;
+};
+
+const maybeRelayCachedRoute = (driverId: number, clientId: number) => {
+    const cached = cachedDriverRoutes.get(driverId);
+    if (!cached || !Array.isArray(cached.route) || cached.route.length < 2) {
+        return;
+    }
+
+    const relayKey = `${clientId}|${cached.requestId ?? ''}|${cached.phase ?? ''}|${cached.route.length}`;
+    const now = Date.now();
+    const prev = lastRouteRelayMetaByDriver.get(driverId);
+
+    // Reenviar si cambió ruta/cliente o si pasaron >8s (cliente pudo recargar tarde).
+    const shouldRelay = !prev || prev.key !== relayKey || (now - prev.at) > 8000;
+    if (!shouldRelay) return;
+
+    io.to(`user_${clientId}`).emit('driver:route', cached);
+    lastRouteRelayMetaByDriver.set(driverId, { key: relayKey, at: now });
 };
 
 export const initSockets = (httpServer: HttpServer) => {
@@ -86,7 +138,7 @@ export const initSockets = (httpServer: HttpServer) => {
         }
 
         // Intercept driver location updates
-        socket.on("driver:location:update", async (data: { lat: number; lon: number }) => {
+        socket.on("driver:location:update", async (data: DriverLocationPayload) => {
             if (user.role === 'DRIVER') {
                 logger.debug({ driverId: user.id, lat: data.lat, lon: data.lon }, 'Driver location update');
                 activeDrivers.set(user.id, {
@@ -106,15 +158,24 @@ export const initSockets = (httpServer: HttpServer) => {
 
                 // Relay driver position to the client of the active request
                 try {
-                    const { rows } = await db.query(
-                        `SELECT client_id FROM pickup_requests
-                         WHERE driver_id = $1 AND status IN ('CONFIRMATION_PENDING', 'IN_PROGRESS')
-                         LIMIT 1`,
-                        [user.id]
-                    );
-                    if (rows.length > 0) {
-                        const clientId = rows[0].client_id;
-                        io.to(`user_${clientId}`).emit('driver:location', { lat: data.lat, lon: data.lon });
+                    const clientId = await findActiveClientIdByDriver(user.id);
+                    if (clientId !== null) {
+                        const routeTail = Array.isArray(data.routeTail)
+                            ? data.routeTail
+                                .filter((point): point is { lat: number; lon: number } =>
+                                    Number.isFinite(point?.lat) && Number.isFinite(point?.lon)
+                                )
+                                .slice(0, 2000)
+                                .map((point) => ({ lat: point.lat, lon: point.lon }))
+                            : null;
+
+                        io.to(`user_${clientId}`).emit('driver:location', {
+                            lat: data.lat,
+                            lon: data.lon,
+                            routeProgress: Number.isFinite(data.routeProgress) ? data.routeProgress : null,
+                            routeTail,
+                        });
+                        maybeRelayCachedRoute(user.id, clientId);
                     }
                 } catch (err) {
                     // Non-critical — don't break the flow
@@ -122,9 +183,57 @@ export const initSockets = (httpServer: HttpServer) => {
             }
         });
 
+        socket.on("driver:route:update", async (data: DriverRoutePayload) => {
+            if (user.role !== 'DRIVER' || !Array.isArray(data?.route)) {
+                return;
+            }
+
+            const sanitizedRoute = data.route
+                .filter((point): point is DriverRoutePoint =>
+                    Number.isFinite(point?.lat) && Number.isFinite(point?.lon)
+                )
+                .slice(0, 2000)
+                .map((point) => ({ lat: point.lat, lon: point.lon }));
+
+            if (sanitizedRoute.length < 2) {
+                return;
+            }
+
+            logger.debug(
+                { driverId: user.id, points: sanitizedRoute.length, requestId: data.requestId ?? null, phase: data.phase ?? null },
+                'Driver route update'
+            );
+
+            try {
+                const clientId = await findActiveClientIdByDriver(user.id);
+                const payloadToClient: DriverRoutePayload = {
+                    route: sanitizedRoute,
+                    requestId: data.requestId ?? null,
+                    phase: data.phase ?? null,
+                };
+                cachedDriverRoutes.set(user.id, payloadToClient);
+                lastRouteRelayMetaByDriver.delete(user.id);
+
+                if (clientId !== null) {
+                    io.to(`user_${clientId}`).emit('driver:route', payloadToClient);
+                    lastRouteRelayMetaByDriver.set(
+                        user.id,
+                        {
+                            key: `${clientId}|${payloadToClient.requestId ?? ''}|${payloadToClient.phase ?? ''}|${payloadToClient.route.length}`,
+                            at: Date.now()
+                        }
+                    );
+                }
+            } catch (err) {
+                logger.error({ err, driverId: user.id }, 'Failed to relay driver route');
+            }
+        });
+
         socket.on("disconnect", () => {
             if (user.role === 'DRIVER') {
                 activeDrivers.delete(user.id);
+                cachedDriverRoutes.delete(user.id);
+                lastRouteRelayMetaByDriver.delete(user.id);
             }
             logger.info({ socketId: socket.id, userId: user.id }, 'Socket disconnected');
         });
