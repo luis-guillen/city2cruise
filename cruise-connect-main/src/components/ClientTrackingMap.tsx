@@ -1,12 +1,11 @@
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigation } from 'lucide-react';
 import L from 'leaflet';
 import { getOSRMRoute } from '@/utils/routing';
 import { PickupRequest } from '@/services/api';
 import GlassCard from './ios/GlassCard';
 
-/** Coordenadas de las taquillas del puerto de Las Palmas */
 const LOCKER_DESTINATION = { lat: 28.1505, lon: -15.4145 };
 
 function MapUpdater({ center }: { center: [number, number] }) {
@@ -18,7 +17,6 @@ function MapUpdater({ center }: { center: [number, number] }) {
   return null;
 }
 
-/* Custom marker icons */
 const driverIcon = L.divIcon({
   className: '',
   html: `<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#007AFF,#5AC8FA);border:3px solid white;box-shadow:0 2px 12px rgba(0,122,255,0.4);display:flex;align-items:center;justify-content:center">
@@ -50,8 +48,38 @@ function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): 
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Recorta la ruta completa devolviendo solo los puntos desde la posición
+ * actual del driver hasta el final. Así la línea siempre empieza en el icono.
+ */
+function trimRouteFromDriver(
+  driverPos: { lat: number; lon: number },
+  route: [number, number][]
+): [number, number][] {
+  if (route.length < 2) return route;
+
+  let closestIdx = 0;
+  let minDist = Infinity;
+
+  for (let i = 0; i < route.length - 1; i++) {
+    const [lat, lon] = route[i];
+    const d = Math.abs(lat - driverPos.lat) + Math.abs(lon - driverPos.lon);
+    if (d < minDist) {
+      minDist = d;
+      closestIdx = i;
+    }
+  }
+
+  // El primer punto de la línea es EXACTAMENTE donde está el driver
+  return [[driverPos.lat, driverPos.lon], ...route.slice(closestIdx + 1)];
 }
 
 interface ClientTrackingMapProps {
@@ -69,7 +97,9 @@ function MapClickHandler({ onSelect }: { onSelect: (lat: number, lon: number) =>
     map.on('click', (e) => {
       onSelect(e.latlng.lat, e.latlng.lng);
     });
-    return () => { map.off('click'); };
+    return () => {
+      map.off('click');
+    };
   }, [map, onSelect]);
   return null;
 }
@@ -80,7 +110,7 @@ export default function ClientTrackingMap({
   selectable,
   onLocationSelect,
   initialLat,
-  initialLon
+  initialLon,
 }: ClientTrackingMapProps) {
   const [driverPos, setDriverPos] = useState<{ lat: number; lon: number } | null>(
     request?.driverLatitude && request?.driverLongitude
@@ -88,6 +118,11 @@ export default function ClientTrackingMap({
       : null
   );
   const [route, setRoute] = useState<[number, number][]>([]);
+
+  // Guardamos la ruta OSRM completa para poder recortarla sin re-pedirla
+  const fullRouteRef = useRef<[number, number][]>([]);
+  const lastRouteOriginRef = useRef<{ lat: number; lon: number } | null>(null);
+  const lastStatusRef = useRef<string | null>(null);
 
   // 1. Escuchar eventos de ubicación en tiempo real del socket
   useEffect(() => {
@@ -108,17 +143,55 @@ export default function ClientTrackingMap({
     }
   }, [request?.id, request?.driverLatitude, request?.driverLongitude]);
 
-  // 3. Obtener la ruta real por calles para dibujar la polilínea
+  // 3. Gestionar la ruta: re-pedir a OSRM solo cuando cambia el status o el driver
+  //    se aleja mucho; en cada update intermedio solo recortamos la ruta guardada.
   useEffect(() => {
     if (!driverPos || !request) return;
-    
-    const destination = request.status === 'CONFIRMATION_PENDING'
-      ? { lat: request.latitude || 28.12, lon: request.longitude || -15.43 }
-      : LOCKER_DESTINATION;
 
-    getOSRMRoute(driverPos, destination)
-      .then(setRoute)
-      .catch(() => setRoute([]));
+    const statusChanged = lastStatusRef.current !== request.status;
+    const prev = lastRouteOriginRef.current;
+
+    // Solo re-pedimos ruta a OSRM si cambia el status o si el driver está >500m
+    // del punto de origen de la última ruta pedida
+    const movedFarFromRoute =
+      !prev ||
+      Math.abs(driverPos.lat - prev.lat) > 0.005 ||
+      Math.abs(driverPos.lon - prev.lon) > 0.005;
+
+    if (!statusChanged && !movedFarFromRoute) {
+      // Reutilizar ruta guardada, solo recortar desde la posición actual
+      if (fullRouteRef.current.length > 1) {
+        const trimmed = trimRouteFromDriver(driverPos, fullRouteRef.current);
+        setRoute(trimmed);
+      }
+      return;
+    }
+
+    lastRouteOriginRef.current = { ...driverPos };
+    lastStatusRef.current = request.status;
+
+    const destination =
+      request.status === 'CONFIRMATION_PENDING'
+        ? { lat: request.latitude || 28.12, lon: request.longitude || -15.43 }
+        : LOCKER_DESTINATION;
+
+    const fetchWithRetry = async (retries = 3): Promise<void> => {
+      try {
+        const coords = await getOSRMRoute(driverPos, destination);
+        if (coords.length <= 2 && retries > 0) {
+          setTimeout(() => fetchWithRetry(retries - 1), 800);
+          return;
+        }
+        fullRouteRef.current = coords; // guardar ruta completa para recortes futuros
+        const trimmed = trimRouteFromDriver(driverPos, coords);
+        setRoute(trimmed);
+      } catch {
+        if (retries > 0) setTimeout(() => fetchWithRetry(retries - 1), 800);
+        else setRoute([]);
+      }
+    };
+
+    fetchWithRetry();
   }, [driverPos?.lat, driverPos?.lon, request?.status, request?.latitude, request?.longitude]);
 
   // ── Modo seleccionable (picker en el dashboard) ──
@@ -156,11 +229,17 @@ export default function ClientTrackingMap({
     );
   }
 
-  const destination = request?.status === 'CONFIRMATION_PENDING'
-    ? { lat: request?.latitude || 28.12, lon: request?.longitude || -15.43 }
-    : LOCKER_DESTINATION;
+  const destination =
+    request?.status === 'CONFIRMATION_PENDING'
+      ? { lat: request?.latitude || 28.12, lon: request?.longitude || -15.43 }
+      : LOCKER_DESTINATION;
 
-  const distance = getDistanceKm(driverPos.lat, driverPos.lon, destination.lat, destination.lon);
+  const distance = getDistanceKm(
+    driverPos.lat,
+    driverPos.lon,
+    destination.lat,
+    destination.lon
+  );
 
   return (
     <div className="rounded-[20px] overflow-hidden shadow-lg shadow-black/10 animate-scale-in bg-white/50 backdrop-blur-md border border-white/20">
@@ -170,7 +249,9 @@ export default function ClientTrackingMap({
           <div className="w-2 h-2 rounded-full bg-[var(--ios-green)] animate-pulse" />
           <span className="text-[13px] font-semibold">
             {driverName || 'Conductor'}{' '}
-            {request?.status === 'CONFIRMATION_PENDING' ? 'viniendo a por tu paquete' : 'llevando tu paquete al puerto'}
+            {request?.status === 'CONFIRMATION_PENDING'
+              ? 'viniendo a por tu paquete'
+              : 'llevando tu paquete al puerto'}
           </span>
         </div>
         <span className="text-[13px] font-medium text-[var(--ios-blue)]">
@@ -194,7 +275,9 @@ export default function ClientTrackingMap({
         {/* Marker del Conductor */}
         <Marker position={[driverPos.lat, driverPos.lon]} icon={driverIcon}>
           <Popup>
-            <div className="text-[13px]"><strong>{driverName || 'Conductor'}</strong></div>
+            <div className="text-[13px]">
+              <strong>{driverName || 'Conductor'}</strong>
+            </div>
           </Popup>
         </Marker>
 
@@ -205,22 +288,26 @@ export default function ClientTrackingMap({
         >
           <Popup>
             <div className="text-[13px]">
-              <strong>{request?.status === 'CONFIRMATION_PENDING' ? 'Tu ubicación' : 'Puerto (Taquillas)'}</strong>
+              <strong>
+                {request?.status === 'CONFIRMATION_PENDING'
+                  ? 'Tu ubicación'
+                  : 'Puerto (Taquillas)'}
+              </strong>
             </div>
           </Popup>
         </Marker>
 
-        {/* Polilínea de la ruta real por calles */}
-        {route.length > 0 && (
+        {/* Polilínea de la ruta real por calles, recortada desde el driver */}
+        {route.length > 1 && (
           <Polyline
             positions={route}
-            pathOptions={{ 
-              color: '#007AFF', 
-              weight: 5, 
-              opacity: 0.8, 
-              lineCap: 'round', 
+            pathOptions={{
+              color: '#007AFF',
+              weight: 4,
+              opacity: 0.9,
+              lineCap: 'round',
               lineJoin: 'round',
-              dashArray: '1, 10', // Mantener estilo punteado pero sobre la ruta real
+              dashArray: '2, 10',
             }}
           />
         )}

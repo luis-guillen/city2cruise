@@ -1,8 +1,7 @@
-/**
- * Obtiene una ruta real por calles entre dos puntos usando la API pública de OSRM.
- * Devuelve un array de coordenadas [[lat, lon], ...]
- */
-export async function getOSRMRoute(start: { lat: number; lon: number }, end: { lat: number; lon: number }): Promise<[number, number][]> {
+export async function getOSRMRoute(
+  start: { lat: number; lon: number },
+  end: { lat: number; lon: number }
+): Promise<[number, number][]> {
   try {
     const url = `https://router.project-osrm.org/route/v1/driving/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson`;
     const response = await fetch(url);
@@ -12,18 +11,19 @@ export async function getOSRMRoute(start: { lat: number; lon: number }, end: { l
       console.warn('OSRM Route failed, using straight line', data);
       return [
         [start.lat, start.lon],
-        [end.lat, end.lon]
+        [end.lat, end.lon],
       ];
     }
 
-    // GeoJSON usa [lon, lat], nosotros necesitamos [lat, lon] para Leaflet
-    const coordinates = data.routes[0].geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
-    return coordinates as [number, number][];
+    const coordinates = data.routes[0].geometry.coordinates.map(
+      (coord: [number, number]) => [coord[1], coord[0]] as [number, number]
+    );
+    return coordinates;
   } catch (error) {
     console.error('Error fetching OSRM route:', error);
     return [
       [start.lat, start.lon],
-      [end.lat, end.lon]
+      [end.lat, end.lon],
     ];
   }
 }

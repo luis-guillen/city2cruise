@@ -52,7 +52,7 @@ export default function DriverDashboard() {
   // Demo destination: Client if phase 1, Port if phase 2
   const demoDestination = activePickup 
     ? (activePickup.status === 'CONFIRMATION_PENDING' 
-        ? { lat: activePickup.latitude, lon: activePickup.longitude }
+        ? { lat: activePickup.latitude || 28.1413, lon: activePickup.longitude || -15.4308 }
         : { lat: 28.1505, lon: -15.4145 })
     : null;
 
