@@ -1,0 +1,14 @@
+{
+  "name": "City2Cruise - Shop&Drop Port Hub",
+  "short_name": "City2Cruise",
+  "description": "Plataforma de logistica de ultima milla para cruceristas",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0EA5E9",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "64x64", "type": "image/x-icon" },
+    { "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
