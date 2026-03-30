@@ -11,6 +11,7 @@ import GlassCard from '@/components/ios/GlassCard';
 import DriverMap from '@/components/DriverMap';
 import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
 import { toast } from 'sonner';
+import { getApiErrorMessage } from '@/utils/errors';
 import {
   Navigation, MapPin, Package, Box, Archive, LogOut,
   RefreshCw, CheckCircle2, Truck, AlertTriangle
@@ -60,6 +61,10 @@ export default function DriverDashboard() {
     startPosition: location,
     destination: demoDestination,
     active: !!activePickup,
+    requestId: activePickup?.id ?? null,
+    phase: activePickup?.status === 'CONFIRMATION_PENDING' || activePickup?.status === 'IN_PROGRESS'
+      ? activePickup.status
+      : null,
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -84,7 +89,7 @@ export default function DriverDashboard() {
       await refreshData();
       toast.success('Solicitud aceptada');
     } catch (err: unknown) {
-      toast.error((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Error');
+      toast.error(getApiErrorMessage(err, 'Error'));
     } finally { setIsLoading(false); }
   };
 
@@ -96,7 +101,7 @@ export default function DriverDashboard() {
       await refreshData();
       toast.success('Paquete depositado');
     } catch (err: unknown) {
-      toast.error((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Error');
+      toast.error(getApiErrorMessage(err, 'Error'));
     } finally { setIsLoading(false); }
   };
 
@@ -108,7 +113,7 @@ export default function DriverDashboard() {
       await refreshData();
       toast.success('Código renovado');
     } catch (err: unknown) {
-      toast.error((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Error');
+      toast.error(getApiErrorMessage(err, 'Error'));
     } finally { setIsLoading(false); }
   };
 

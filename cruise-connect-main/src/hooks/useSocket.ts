@@ -54,6 +54,12 @@ export const useSocket = () => {
             }
         });
 
+        socket.on('driver:route', (data) => {
+            if (role === 'CLIENT') {
+                window.dispatchEvent(new CustomEvent('driver:route:received', { detail: data }));
+            }
+        });
+
         return () => {
             socket.off('request:new');
             socket.off('new:pickup:request');
@@ -61,6 +67,7 @@ export const useSocket = () => {
             socket.off('locker:ready');
             socket.off('notification:new');
             socket.off('driver:location');
+            socket.off('driver:route');
             socket.disconnect();
         };
     }, [token, role, refreshData]);

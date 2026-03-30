@@ -7,6 +7,7 @@ import { loginUser, registerUser } from '@/services/api';
 import GlassCard from '@/components/ios/GlassCard';
 import GlassInput from '@/components/ios/GlassInput';
 import GlassSegmented from '@/components/ios/GlassSegmented';
+import { getApiErrorMessage } from '@/utils/errors';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -55,8 +56,7 @@ export default function LoginPage() {
         navigate(user.role === 'ADMIN' ? '/admin' : user.role === 'CLIENT' ? '/client' : '/driver');
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Error de autenticación';
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err, 'Error de autenticación'));
     } finally {
       setIsLoading(false);
     }

@@ -21,6 +21,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getApiErrorMessage } from '@/utils/errors';
 
 const PACKAGE_OPTIONS = [
   { id: 'SMALL' as const, label: 'Pequeño', icon: Package, desc: 'Bolsas, souvenirs' },
@@ -167,7 +168,7 @@ export default function ClientDashboard() {
       setSelectedLocation(null);
       toast.success('Solicitud creada');
     } catch (err: unknown) {
-      toast.error((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Error al crear solicitud');
+      toast.error(getApiErrorMessage(err, 'Error al crear solicitud'));
     } finally { setIsLoading(false); }
   };
 
@@ -180,7 +181,7 @@ export default function ClientDashboard() {
       setHandshakeCodeInput('');
       toast.success('Encuentro confirmado');
     } catch (err: unknown) {
-      toast.error((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Código incorrecto');
+      toast.error(getApiErrorMessage(err, 'Código incorrecto'));
     } finally { setIsLoading(false); }
   };
 
@@ -202,7 +203,7 @@ export default function ClientDashboard() {
         throw new Error('Respuesta del servidor incompleta');
       }
     } catch (err: unknown) {
-      toast.error((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Error al abrir');
+      toast.error(getApiErrorMessage(err, 'Error al abrir'));
     } finally { setIsLoading(false); }
   };
 
