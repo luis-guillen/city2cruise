@@ -1,119 +1,132 @@
 import { useEffect, useRef, useState } from 'react';
 import { socket } from '@/socket';
-
-/**
- * Coordenadas del destino demo: Muelle de cruceros / Taquillas del puerto de Las Palmas.
- */
-const LOCKER_DESTINATION = { lat: 28.1505, lon: -15.4145 };
+import { getOSRMRoute } from '@/utils/routing';
 
 /**
  * Número de waypoints (pasos) para la animación.
- * Con interval de 1.5s → ~30s de animación total.
+ * Queremos que la animación dure unos 20-30 segundos.
  */
-const TOTAL_STEPS = 20;
-const STEP_INTERVAL_MS = 1500;
+const TOTAL_STEPS = 40;
+const STEP_INTERVAL_MS = 1000;
 
 /**
- * Interpola linealmente entre dos puntos, generando `steps` waypoints.
+ * Interpola una lista de puntos (ruta real) para obtener exactamente N puntos equidistantes.
+ * Esto asegura que el icono se mueva a una velocidad constante a lo largo de las calles.
  */
-function interpolate(
-  from: { lat: number; lon: number },
-  to: { lat: number; lon: number },
-  steps: number
-): Array<{ lat: number; lon: number }> {
-  const waypoints: Array<{ lat: number; lon: number }> = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    // Añadir micro-variación para que el movimiento sea más realista (no una línea perfecta)
-    const jitter = () => (Math.random() - 0.5) * 0.0003;
-    waypoints.push({
-      lat: from.lat + (to.lat - from.lat) * t + (i > 0 && i < steps ? jitter() : 0),
-      lon: from.lon + (to.lon - from.lon) * t + (i > 0 && i < steps ? jitter() : 0),
-    });
-  }
-  return waypoints;
+function interpolatePoints(path: [number, number][], steps: number): Array<{ lat: number; lon: number }> {
+    if (path.length < 2) return [];
+    
+    // Calculamos la distancia total acumulada
+    const distances: number[] = [0];
+    let totalDist = 0;
+    for (let i = 1; i < path.length; i++) {
+        const d = Math.sqrt(Math.pow(path[i][0] - path[i-1][0], 2) + Math.pow(path[i][1] - path[i-1][1], 2));
+        totalDist += d;
+        distances.push(totalDist);
+    }
+
+    const result: Array<{ lat: number; lon: number }> = [];
+    for (let i = 0; i <= steps; i++) {
+        const targetDist = (i / steps) * totalDist;
+        
+        // Encontramos el segmento que contiene esta distancia
+        let idx = 0;
+        while (idx < distances.length - 1 && distances[idx + 1] < targetDist) {
+            idx++;
+        }
+
+        const d1 = distances[idx];
+        const d2 = distances[idx + 1];
+        const t = (d2 === d1) ? 0 : (targetDist - d1) / (d2 - d1);
+
+        const p1 = path[idx];
+        const p2 = path[idx + 1];
+
+        result.push({
+            lat: p1[0] + (p2[0] - p1[0]) * t,
+            lon: p1[1] + (p2[1] - p1[1]) * t,
+        });
+    }
+    return result;
 }
 
 interface UseDemoDriverRouteOptions {
-  /** Posición actual real del driver (punto de partida base) */
-  startPosition: { lat: number; lon: number } | null;
-  /** Destino actual (cliente o taquillas) */
-  destination: { lat: number; lon: number } | null;
-  /** Activar la simulación */
-  active: boolean;
+    startPosition: { lat: number; lon: number } | null;
+    destination: { lat: number; lon: number } | null;
+    active: boolean;
 }
 
-/**
- * Hook que simula el movimiento del driver hacia un destino dinámico.
- * Con interval de 1.5s y 20 pasos → ~30s de animación total.
- */
 export function useDemoDriverRoute({ startPosition, destination, active }: UseDemoDriverRouteOptions) {
-  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
-  const [demoPosition, setDemoPosition] = useState<{ lat: number; lon: number } | null>(null);
-  const [isDemoActive, setIsDemoActive] = useState(false);
-  
-  const wayPointsRef = useRef<Array<{ lat: number; lon: number }>>([]);
-  const stepRef = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
-  const currentDestRef = useRef<{ lat: number; lon: number } | null>(null);
+    const [demoPosition, setDemoPosition] = useState<{ lat: number; lon: number } | null>(null);
+    const [isDemoActive, setIsDemoActive] = useState(false);
 
-  useEffect(() => {
-    // Solo activar en demo mode y con datos válidos
-    if (!isDemoMode || !active || !startPosition || !destination) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = undefined;
-      }
-      setIsDemoActive(false);
-      currentDestRef.current = null;
-      return;
-    }
+    const wayPointsRef = useRef<Array<{ lat: number; lon: number }>>([]);
+    const stepRef = useRef(0);
+    const intervalRef = useRef<ReturnType<typeof setInterval>>();
+    const currentDestRef = useRef<{ lat: number; lon: number } | null>(null);
 
-    // Si el destino es el mismo que el anterior, no reiniciar animación
-    if (currentDestRef.current?.lat === destination.lat && currentDestRef.current?.lon === destination.lon) {
-      return;
-    }
-
-    // Reiniciar animación para el nuevo destino
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    
-    currentDestRef.current = destination;
-    // Partir de la última posición demo si existe, o de la posición actual
-    const origin = demoPosition || startPosition;
-    
-    wayPointsRef.current = interpolate(origin, destination, TOTAL_STEPS);
-    stepRef.current = 0;
-    setIsDemoActive(true);
-    setDemoPosition(origin);
-
-    intervalRef.current = setInterval(() => {
-      stepRef.current += 1;
-      const wp = wayPointsRef.current[stepRef.current];
-
-      if (!wp || stepRef.current >= TOTAL_STEPS) {
-        setDemoPosition(destination);
-        if (socket.connected) {
-          socket.emit('driver:location:update', destination);
+    useEffect(() => {
+        // Limpieza si no hay datos o no está activo
+        if (!active || !startPosition || !destination) {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = undefined;
+            }
+            setIsDemoActive(false);
+            currentDestRef.current = null;
+            setDemoPosition(null);
+            return;
         }
-        clearInterval(intervalRef.current);
-        intervalRef.current = undefined;
-        setIsDemoActive(false);
-        return;
-      }
 
-      setDemoPosition(wp);
-      if (socket.connected) {
-        socket.emit('driver:location:update', wp);
-      }
-    }, STEP_INTERVAL_MS);
+        // Evitar reinicios si el destino es el mismo
+        if (currentDestRef.current?.lat === destination.lat && currentDestRef.current?.lon === destination.lon) {
+            return;
+        }
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = undefined;
-      }
-    };
-  }, [isDemoMode, active, startPosition, destination]);
+        // Obtener ruta real por calles y empezar animación
+        const fetchAndStart = async () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            currentDestRef.current = destination;
 
-  return { demoPosition, isDemoActive };
+            const origin = demoPosition || startPosition;
+            console.log("[Simulation] Fetching street route from", origin, "to", destination);
+            
+            const routeCoords = await getOSRMRoute(origin, destination);
+            wayPointsRef.current = interpolatePoints(routeCoords, TOTAL_STEPS);
+            stepRef.current = 0;
+            setIsDemoActive(true);
+            setDemoPosition(wayPointsRef.current[0]);
+
+            intervalRef.current = setInterval(() => {
+                stepRef.current += 1;
+                const wp = wayPointsRef.current[stepRef.current];
+
+                if (!wp || stepRef.current >= TOTAL_STEPS) {
+                    setDemoPosition(destination);
+                    if (socket.connected) {
+                        socket.emit('driver:location:update', { lat: destination.lat, lon: destination.lon });
+                    }
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = undefined;
+                    setIsDemoActive(false);
+                    return;
+                }
+
+                setDemoPosition(wp);
+                if (socket.connected) {
+                    socket.emit('driver:location:update', { lat: wp.lat, lon: wp.lon });
+                }
+            }, STEP_INTERVAL_MS);
+        };
+
+        fetchAndStart();
+
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+            }
+        };
+    }, [active, startPosition?.lat, startPosition?.lon, destination?.lat, destination?.lon]);
+
+    return { demoPosition, isDemoActive };
 }

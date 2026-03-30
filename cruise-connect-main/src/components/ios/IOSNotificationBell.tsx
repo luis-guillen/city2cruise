@@ -9,8 +9,27 @@ export default function IOSNotificationBell() {
   const [notifications, setNotifications] = useState<NotificationDTO[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [panelStyle, setPanelStyle] = useState<{ top: number; left: number }>({ top: 0, left: 16 });
 
   const unread = notifications.filter(n => !n.read).length;
+
+  // Recalculate panel position every time it opens
+  useEffect(() => {
+    if (isOpen && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      // Anchor panel to the left edge of the button, clamp so it doesn't overflow the viewport
+      const panelWidth = 300;
+      let left = rect.left;
+      if (left + panelWidth > window.innerWidth - 8) {
+        left = window.innerWidth - panelWidth - 8;
+      }
+      setPanelStyle({
+        top: rect.bottom + 8,
+        left,
+      });
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (role !== 'CLIENT') return;
@@ -56,8 +75,9 @@ export default function IOSNotificationBell() {
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref}>
       <button
+        ref={btnRef}
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 rounded-full transition-colors hover:bg-white/30 active:scale-95"
       >
@@ -70,7 +90,14 @@ export default function IOSNotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-[calc(100%+8px)] w-[320px] glass-ultra rounded-[18px] overflow-hidden animate-scale-in z-50 shadow-lg shadow-black/10">
+        <div
+          className="fixed w-[300px] glass-ultra rounded-[18px] overflow-hidden animate-scale-in shadow-2xl shadow-black/20"
+          style={{
+            top: panelStyle.top,
+            left: panelStyle.left,
+            zIndex: 9999,
+          }}
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 pt-4 pb-2">
             <div className="flex items-center gap-2">
@@ -114,7 +141,7 @@ export default function IOSNotificationBell() {
                     <p className={`text-[14px] leading-tight ${!n.read ? 'font-semibold' : ''}`}>
                       {n.title}
                     </p>
-                    <p className="text-[13px] text-[var(--ios-text-secondary)] mt-0.5 whitespace-pre-wrap line-clamp-2">
+                    <p className="text-[13px] text-[var(--ios-text-secondary)] mt-0.5 whitespace-pre-wrap line-clamp-3">
                       {n.message}
                     </p>
                     <p className="text-[11px] text-[var(--ios-text-tertiary)] mt-1">

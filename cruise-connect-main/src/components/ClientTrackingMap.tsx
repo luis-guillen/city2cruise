@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigation } from 'lucide-react';
 import L from 'leaflet';
 import { getOSRMRoute } from '@/utils/routing';
@@ -8,16 +8,6 @@ import GlassCard from './ios/GlassCard';
 
 /** Coordenadas de las taquillas del puerto de Las Palmas */
 const LOCKER_DESTINATION = { lat: 28.1505, lon: -15.4145 };
-
-/** Punto de partida demo cuando el driver no tiene posición real */
-const DEMO_DRIVER_START = { lat: 28.128, lon: -15.445 };
-
-const DEMO_STEPS = 24;
-const DEMO_INTERVAL_MS = 1250;
-
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
-}
 
 function MapUpdater({ center }: { center: [number, number] }) {
   const map = useMap();
@@ -98,90 +88,40 @@ export default function ClientTrackingMap({
       : null
   );
   const [route, setRoute] = useState<[number, number][]>([]);
-  const demoIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
-  const demoActiveRef = useRef(false);
 
-  // Listen for real driver location events (from socket)
+  // 1. Escuchar eventos de ubicación en tiempo real del socket
   useEffect(() => {
     const handler = (e: Event) => {
       const { lat, lon } = (e as CustomEvent).detail;
       if (lat && lon) {
         setDriverPos({ lat, lon });
-        demoActiveRef.current = false; // real data overrides demo
-        if (demoIntervalRef.current) {
-          clearInterval(demoIntervalRef.current);
-          demoIntervalRef.current = undefined;
-        }
       }
     };
     window.addEventListener('driver:location:received', handler);
     return () => window.removeEventListener('driver:location:received', handler);
   }, []);
 
-  // Update from request DTO when request changes
+  // 2. Sincronizar desde el objeto request (por si se refresca la página)
   useEffect(() => {
     if (request?.driverLatitude && request?.driverLongitude) {
       setDriverPos({ lat: request.driverLatitude, lon: request.driverLongitude });
-      demoActiveRef.current = false;
     }
   }, [request?.id, request?.driverLatitude, request?.driverLongitude]);
 
-  // Auto-start demo animation when no real driver position is available
+  // 3. Obtener la ruta real por calles para dibujar la polilínea
   useEffect(() => {
-    if (!request) return;
-    const status = request.status;
-    if (status !== 'CONFIRMATION_PENDING' && status !== 'IN_PROGRESS') return;
-    if (driverPos || demoActiveRef.current) return;
-
-    // Calculate destination for current phase
-    const dest = status === 'CONFIRMATION_PENDING'
-      ? { lat: request.latitude || LOCKER_DESTINATION.lat, lon: request.longitude || LOCKER_DESTINATION.lon }
-      : LOCKER_DESTINATION;
-
-    // Vary start position slightly per request to feel realistic
-    const jitter = (request.id ? (Number(request.id) % 10) * 0.001 : 0);
-    const start = { lat: DEMO_DRIVER_START.lat + jitter, lon: DEMO_DRIVER_START.lon - jitter };
-
-    demoActiveRef.current = true;
-    setDriverPos(start);
-
-    let step = 0;
-    demoIntervalRef.current = setInterval(() => {
-      step++;
-      if (step >= DEMO_STEPS) {
-        setDriverPos(dest);
-        demoActiveRef.current = false;
-        clearInterval(demoIntervalRef.current);
-        demoIntervalRef.current = undefined;
-        return;
-      }
-      const t = step / DEMO_STEPS;
-      // Small jitter for realism
-      const noise = (Math.random() - 0.5) * 0.0003;
-      setDriverPos({
-        lat: lerp(start.lat, dest.lat, t) + noise,
-        lon: lerp(start.lon, dest.lon, t) + noise,
-      });
-    }, DEMO_INTERVAL_MS);
-
-    return () => {
-      if (demoIntervalRef.current) {
-        clearInterval(demoIntervalRef.current);
-        demoIntervalRef.current = undefined;
-      }
-    };
-  }, [request?.id, request?.status]);
-
-  // Fetch route when driver pos or destination changes
-  useEffect(() => {
-    if (!driverPos) return;
-    const dest = request?.status === 'CONFIRMATION_PENDING'
+    if (!driverPos || !request) return;
+    
+    const destination = request.status === 'CONFIRMATION_PENDING'
       ? { lat: request.latitude || 28.12, lon: request.longitude || -15.43 }
       : LOCKER_DESTINATION;
-    getOSRMRoute(driverPos, dest).then(setRoute).catch(() => setRoute([]));
-  }, [driverPos, request?.status, request?.latitude, request?.longitude]);
 
-  // ── Selectable mode (location picker) ──
+    getOSRMRoute(driverPos, destination)
+      .then(setRoute)
+      .catch(() => setRoute([]));
+  }, [driverPos?.lat, driverPos?.lon, request?.status, request?.latitude, request?.longitude]);
+
+  // ── Modo seleccionable (picker en el dashboard) ──
   if (selectable) {
     return (
       <div className="h-full w-full">
@@ -204,7 +144,7 @@ export default function ClientTrackingMap({
     );
   }
 
-  // ── Loading state (brief) ──
+  // ── Estado de carga ──
   if (!driverPos) {
     return (
       <GlassCard variant="thin" className="py-12 text-center animate-pulse">
@@ -217,14 +157,14 @@ export default function ClientTrackingMap({
   }
 
   const destination = request?.status === 'CONFIRMATION_PENDING'
-    ? { lat: request.latitude || 28.12, lon: request.longitude || -15.43 }
+    ? { lat: request?.latitude || 28.12, lon: request?.longitude || -15.43 }
     : LOCKER_DESTINATION;
 
   const distance = getDistanceKm(driverPos.lat, driverPos.lon, destination.lat, destination.lon);
 
   return (
-    <div className="rounded-[20px] overflow-hidden shadow-lg shadow-black/10 animate-scale-in bg-white/50 backdrop-blur-md">
-      {/* Header */}
+    <div className="rounded-[20px] overflow-hidden shadow-lg shadow-black/10 animate-scale-in bg-white/50 backdrop-blur-md border border-white/20">
+      {/* Header Info */}
       <div className="glass-ultra px-4 py-3 flex items-center justify-between border-b border-black/5">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[var(--ios-green)] animate-pulse" />
@@ -238,7 +178,7 @@ export default function ClientTrackingMap({
         </span>
       </div>
 
-      {/* Map */}
+      {/* Tracking Map */}
       <MapContainer
         center={[driverPos.lat, driverPos.lon]}
         zoom={14}
@@ -251,12 +191,14 @@ export default function ClientTrackingMap({
         />
         <MapUpdater center={[driverPos.lat, driverPos.lon]} />
 
+        {/* Marker del Conductor */}
         <Marker position={[driverPos.lat, driverPos.lon]} icon={driverIcon}>
           <Popup>
             <div className="text-[13px]"><strong>{driverName || 'Conductor'}</strong></div>
           </Popup>
         </Marker>
 
+        {/* Marker del Destino (Usuario o Puerto) */}
         <Marker
           position={[destination.lat, destination.lon]}
           icon={request?.status === 'CONFIRMATION_PENDING' ? userIcon : lockerIcon}
@@ -268,15 +210,18 @@ export default function ClientTrackingMap({
           </Popup>
         </Marker>
 
-        {route.length > 0 ? (
+        {/* Polilínea de la ruta real por calles */}
+        {route.length > 0 && (
           <Polyline
             positions={route}
-            pathOptions={{ color: '#007AFF', weight: 4, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }}
-          />
-        ) : (
-          <Polyline
-            positions={[[driverPos.lat, driverPos.lon], [destination.lat, destination.lon]]}
-            pathOptions={{ color: '#007AFF', weight: 3, dashArray: '8,6', opacity: 0.5 }}
+            pathOptions={{ 
+              color: '#007AFF', 
+              weight: 5, 
+              opacity: 0.8, 
+              lineCap: 'round', 
+              lineJoin: 'round',
+              dashArray: '1, 10', // Mantener estilo punteado pero sobre la ruta real
+            }}
           />
         )}
       </MapContainer>

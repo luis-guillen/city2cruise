@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 /**
  * Jest global setup: configura variables de entorno ANTES de importar módulos.
  * Esto se ejecuta ANTES de cada test suite.

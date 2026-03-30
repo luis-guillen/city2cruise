@@ -74,9 +74,11 @@ requestsRouter.get('/pending', authMiddleware, requireRole('DRIVER'), async (req
         const drivers = getActiveDrivers();
         const me = drivers.find(d => d.userId === req.user!.id);
         if (me) {
-            lat = me.lat;
-            lon = me.lon;
-            if (radius === null) radius = 3;
+            // lat:0 lon:0 = ubicación inicial antes de recibir GPS real → tratar como sin coordenadas
+            const hasRealLocation = me.lat !== 0 || me.lon !== 0;
+            lat = hasRealLocation ? me.lat : null;
+            lon = hasRealLocation ? me.lon : null;
+            if (lat !== null && radius === null) radius = 3;
         } else {
             return res.json([]);
         }

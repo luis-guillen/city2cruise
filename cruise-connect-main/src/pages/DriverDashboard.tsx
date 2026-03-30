@@ -37,7 +37,7 @@ export default function DriverDashboard() {
     userName, pendingRequests, driverPickups,
     setCurrentRequest, refreshData, logout, homeCoords
   } = useApp();
-  useSocket();
+  const { isConnected: socketConnected } = useSocket();
   
   // Identificar si es cuenta de prueba para la demo
   const isDemoAccount = userName.toLowerCase().includes('driver') || userName.toLowerCase().includes('test');
@@ -157,7 +157,16 @@ export default function DriverDashboard() {
                 )}
               </div>
             </div>
-            <div className={`ios-dot ${location ? 'bg-[var(--ios-green)] ios-dot-pulse' : 'bg-[var(--ios-text-quaternary)]'}`} />
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] uppercase text-[var(--ios-text-tertiary)] font-bold">GPS</span>
+                <div className={`ios-dot ${location ? 'bg-[var(--ios-green)] ios-dot-pulse' : 'bg-[var(--ios-text-quaternary)]'}`} />
+              </div>
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] uppercase text-[var(--ios-text-tertiary)] font-bold">Live</span>
+                <div className={`ios-dot ${socketConnected ? 'bg-[var(--ios-green)] ios-dot-pulse' : 'bg-[var(--ios-red)]'}`} />
+              </div>
+            </div>
           </div>
         </GlassCard>
 

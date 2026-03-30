@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx ts-node:*)"
+      "Bash(npx ts-node:*)",
+      "Bash(npx tsc:*)",
+      "Bash(ipconfig getifaddr:*)"
     ]
   }
 }

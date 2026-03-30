@@ -59,9 +59,10 @@ describe('GeoDispatchService - Cascade Search', () => {
 
         it('debería encontrar conductor en fase 1 (3km) si está dentro del radio', async () => {
             // Mock: ST_DWithin query devuelve un driver
-            mockQuery.mockResolvedValueOnce({
-                rows: [{ id: 101, distance_km: 2.5 }],
-            });
+            mockQuery
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // Check status
+                .mockResolvedValueOnce({ rows: [{ id: 101, distance_km: 2.5 }] }); // ST_DWithin
+
             (getActiveDrivers as jest.Mock).mockReturnValue([
                 { userId: 101, socketId: 'sock-101', lat: 40.01, lon: 20.01 }
             ]);
@@ -72,7 +73,7 @@ describe('GeoDispatchService - Cascade Search', () => {
             await jest.advanceTimersByTimeAsync(100);
 
             expect(db.query).toHaveBeenCalled();
-            expect(emitToSocket).toHaveBeenCalledWith('sock-101', 'request:new', safeDto);
+            expect(emitToSocket).toHaveBeenCalledWith('sock-101', 'new:pickup:request', safeDto);
 
             // Avanzar timers no debería hacer nada más
             await jest.advanceTimersByTimeAsync(45000 * 3);
@@ -82,7 +83,9 @@ describe('GeoDispatchService - Cascade Search', () => {
         it('debería escalar a fase 2 (5km) si no hay conductores en 3km', async () => {
             // Fase 1: no hay conductores en la DB dentro de 3km
             mockQuery
-                .mockResolvedValueOnce({ rows: [] })  // Fase 1 ST_DWithin
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // Fase 1 Status
+                .mockResolvedValueOnce({ rows: [] })                       // Fase 1 ST_DWithin
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // Fase 2 Status
                 .mockResolvedValueOnce({ rows: [{ id: 102, distance_km: 4.0 }] }); // Fase 2 ST_DWithin
 
             (getActiveDrivers as jest.Mock).mockReturnValue([
@@ -98,7 +101,7 @@ describe('GeoDispatchService - Cascade Search', () => {
             // Avanzar 45s para fase 2
             await jest.advanceTimersByTimeAsync(45000);
 
-            expect(emitToSocket).toHaveBeenCalledWith('sock-102', 'request:new', safeDto);
+            expect(emitToSocket).toHaveBeenCalledWith('sock-102', 'new:pickup:request', safeDto);
 
             await jest.advanceTimersByTimeAsync(45000 * 2);
             expect(emitToUser).not.toHaveBeenCalled();
@@ -108,11 +111,14 @@ describe('GeoDispatchService - Cascade Search', () => {
             (getActiveDrivers as jest.Mock).mockReturnValue([]);
             // Todas las fases devuelven array vacío
             mockQuery
-                .mockResolvedValueOnce({ rows: [] })  // Fase 1
-                .mockResolvedValueOnce({ rows: [] })  // Fase 2
-                .mockResolvedValueOnce({ rows: [] })  // Fase 3
-                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] })  // Escalada SELECT
-                .mockResolvedValueOnce({ rowCount: 1 }); // Escalada UPDATE
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // F1 Status
+                .mockResolvedValueOnce({ rows: [] })                       // F1 ST_DWithin
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // F2 Status
+                .mockResolvedValueOnce({ rows: [] })                       // F2 ST_DWithin
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // F3 Status
+                .mockResolvedValueOnce({ rows: [] })                       // F3 ST_DWithin
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // Escalada SELECT
+                .mockResolvedValueOnce({ rowCount: 1 });                  // Escalada UPDATE
 
             startCascadeSearch(1, 10, safeDto);
 
@@ -170,13 +176,16 @@ describe('GeoDispatchService - Cascade Search', () => {
                 { userId: 202, socketId: 'sock-202' }
             ]);
 
+            mockQuery
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }); // Status check
+
             startCascadeSearch(4, 10, safeDtoSinCoords);
 
             await jest.advanceTimersByTimeAsync(100);
 
             // Sin coords no se hace query PostGIS, solo se notifica a todos
-            expect(emitToSocket).toHaveBeenCalledWith('sock-201', 'request:new', safeDtoSinCoords);
-            expect(emitToSocket).toHaveBeenCalledWith('sock-202', 'request:new', safeDtoSinCoords);
+            expect(emitToSocket).toHaveBeenCalledWith('sock-201', 'new:pickup:request', safeDtoSinCoords);
+            expect(emitToSocket).toHaveBeenCalledWith('sock-202', 'new:pickup:request', safeDtoSinCoords);
         });
     });
 
@@ -185,7 +194,9 @@ describe('GeoDispatchService - Cascade Search', () => {
 
         it('debería cancelar cascada cuando un conductor acepta', async () => {
             (getActiveDrivers as jest.Mock).mockReturnValue([]);
-            mockQuery.mockResolvedValueOnce({ rows: [] }); // Fase 1
+            mockQuery
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // F1 Status
+                .mockResolvedValueOnce({ rows: [] });                      // F1 ST_DWithin
 
             startCascadeSearch(5, 10, safeDto);
 
