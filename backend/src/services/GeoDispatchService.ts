@@ -56,12 +56,21 @@ async function notifyDriversInRadius(
     // Cruzar con drivers conectados por socket
     for (const driver of drivers) {
         if (alreadyNotified.has(driver.userId)) continue;
-        if (!nearbyDriverIds.has(driver.userId)) continue;
+
+        const inRadius = nearbyDriverIds.has(driver.userId);
+        // Fallback: driver sin ubicación aún (lat/lon = 0,0) → notificar igualmente para demo
+        const noGps = driver.lat === 0 && driver.lon === 0;
+
+        if (!inRadius && !noGps) continue;
 
         emitToSocket(driver.socketId, 'new:pickup:request', safeDto);
         newly.add(driver.userId);
         const dist = distanceMap.get(driver.userId) ?? 0;
-        logger.info({ requestId, driverId: driver.userId, distKm: parseFloat(dist.toFixed(2)), radiusKm }, 'CASCADE driver notified');
+        console.log(`[CASCADE] Notificando a Driver ${driver.userId} (Socket: ${driver.socketId}) a ${dist.toFixed(2)}km`);
+        logger.info(
+            { requestId, driverId: driver.userId, distKm: parseFloat(dist.toFixed(2)), radiusKm, mode: inRadius ? 'geo' : 'no-gps-fallback' },
+            'CASCADE driver notified'
+        );
     }
 
     return newly;

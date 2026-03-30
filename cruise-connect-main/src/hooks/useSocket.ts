@@ -1,12 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { socket } from '../socket';
 import { useApp } from '../context/AppContext';
 
 export const useSocket = () => {
     const { role, refreshData, token } = useApp();
+    const [isConnected, setIsConnected] = useState(socket.connected);
 
     useEffect(() => {
         if (!token) return;
+
+        const onConnect = () => setIsConnected(true);
+        const onDisconnect = () => setIsConnected(false);
+
+        socket.on('connect', onConnect);
+        socket.on('disconnect', onDisconnect);
 
         socket.auth = { token };
         socket.connect();
@@ -58,6 +65,6 @@ export const useSocket = () => {
         };
     }, [token, role, refreshData]);
 
-    // Expose socket instance for specialized hooks
-    return { socket };
+    // Expose socket instance and connection status
+    return { socket, isConnected };
 };

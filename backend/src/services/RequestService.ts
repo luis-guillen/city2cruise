@@ -142,7 +142,7 @@ export async function acceptRequest(
             }
         }
 
-        await client.query(`
+        const { rowCount } = await client.query(`
             UPDATE pickup_requests
             SET status = 'CONFIRMATION_PENDING',
                 driver_id = $1,
@@ -153,6 +153,11 @@ export async function acceptRequest(
                 updated_at = $4
             WHERE id = $5 AND status = 'REQUESTED'
         `, [driverId, handshakeStore, expiresAt, now, requestId]);
+
+        if (rowCount === 0) {
+            await client.query('ROLLBACK');
+            throw new ServiceError(409, 'CONFLICT', 'El pedido ya no está disponible');
+        }
 
         await client.query('COMMIT');
     } catch (err) {

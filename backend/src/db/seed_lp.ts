@@ -46,11 +46,19 @@ async function main() {
         // CLIENT cerca de Parque Santa Catalina
         await insertUser('Cliente Santa Catalina', 'cliente@demo.com', 'CLIENT', 28.1413, -15.4308);
         // DRIVER 1: Puerto de La Luz (~0.6km del cliente)
-        await insertUser('Driver Puerto Luz', 'driver1@demo.com', 'DRIVER', 28.1468, -15.4170);
+        await insertUser('Driver Cerca', 'driver1@demo.com', 'DRIVER', 28.1468, -15.4170);
         // DRIVER 2: Muelle de Santa Catalina (~0.3km del cliente)
-        await insertUser('Driver Muelle', 'driver2@demo.com', 'DRIVER', 28.1445, -15.4265);
+        await insertUser('Driver Medio', 'driver2@demo.com', 'DRIVER', 28.1445, -15.4265);
         // DRIVER 3: Guanarteme (~2km del cliente)
-        await insertUser('Driver Guanarteme', 'driver3@demo.com', 'DRIVER', 28.1260, -15.4440);
+        await insertUser('Driver Lejos', 'driver3@demo.com', 'DRIVER', 28.1260, -15.4440);
+
+        // DRIVERS PARA CASCADA (Serán teletransportados automáticamente por GeoDispatchService)
+        // dLat: 0.02 (~2.2km)
+        await insertUser('Driver Fase 1', 'drivercerca@test.com', 'DRIVER', 28.14, -15.43);
+        // dLat: 0.04 (~4.4km)
+        await insertUser('Driver Fase 2', 'drivermedio@test.com', 'DRIVER', 28.14, -15.43);
+        // dLat: 0.06 (~6.6km) -> Este es el idel para aceptar en la fase de 7km
+        await insertUser('Driver Fase 3', 'driverlejos@test.com', 'DRIVER', 28.14, -15.43);
 
         // LOCKERS en zonas portuarias de Las Palmas
         await insertLocker('LP-PUERTO-01');

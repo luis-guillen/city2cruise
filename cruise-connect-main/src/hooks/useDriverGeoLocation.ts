@@ -40,7 +40,8 @@ export function useDriverGeoLocation(
         const emit = (lat: number, lon: number) => {
             setLocation({ lat, lon });
             setOutsideZone(!isInsideServiceArea(lat, lon));
-            if (socket.connected) {
+            // Si es cuenta de demo, no emitimos para dejar que el servidor controle la posición de la demo
+            if (socket.connected && !_isDemoAccount) {
                 socket.emit("driver:location:update", { lat, lon });
             }
         };

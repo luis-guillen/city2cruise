@@ -30,8 +30,22 @@ export const updateActiveDriverLocation = (userId: number, lat: number, lon: num
 export const initSockets = (httpServer: HttpServer) => {
     io = new Server(httpServer, {
         cors: {
-            origin: config.frontendUrl,
-            methods: ["GET", "POST"]
+            origin: (origin, callback) => {
+                // Allow: no origin (curl/mobile apps), localhost, LAN IPs in dev
+                if (
+                    !origin ||
+                    origin.startsWith('http://localhost:') ||
+                    (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.'))
+                ) {
+                    callback(null, true);
+                } else if (origin === config.frontendUrl) {
+                    callback(null, true);
+                } else {
+                    callback(new Error('Socket: Not allowed by CORS'));
+                }
+            },
+            methods: ["GET", "POST"],
+            credentials: true,
         }
     });
 

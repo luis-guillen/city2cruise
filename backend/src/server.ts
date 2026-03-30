@@ -19,7 +19,11 @@ export const buildServer = (): Express => {
         origin: (origin, callback) => {
             // Permitir peticiones sin origen (como mobile apps o curl)
             if (!origin) return callback(null, true);
-            if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost:')) {
+            if (
+                allowedOrigins.indexOf(origin) !== -1 || 
+                origin.startsWith('http://localhost:') || 
+                (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.'))
+            ) {
                 callback(null, true);
             } else {
                 callback(new Error('Not allowed by CORS'));
