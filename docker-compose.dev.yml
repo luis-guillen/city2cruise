@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgis/postgis:15-3.3-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cruise
+      POSTGRES_PASSWORD: cruise_secret
+      POSTGRES_DB: cruise_connect
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+      - ./docker/init-test-db.sh:/docker-entrypoint-initdb.d/init-test-db.sh
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cruise -d cruise_connect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    ports:
+      - "9000:9000"
+    environment:
+      NODE_ENV: development
+      JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
+      DATABASE_URL: postgres://cruise:cruise_secret@db:5432/cruise_connect
+      FRONTEND_URL: http://localhost:9100
+    volumes:
+      - ./backend/src:/app/src
+    command: ["npx", "ts-node-dev", "--respawn", "src/index.ts"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./cruise-connect-main
+      target: builder
+    ports:
+      - "9100:5173"
+    environment:
+      VITE_API_URL: http://localhost:9000/api
+      VITE_SOCKET_URL: http://localhost:9000
+    volumes:
+      - ./cruise-connect-main/src:/app/src
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata_dev:

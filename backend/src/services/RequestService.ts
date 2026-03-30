@@ -1,0 +1,585 @@
+import crypto from 'crypto';
+import { db } from '../db/database';
+import { buildPickupRequestDTO, sanitizeForSocket } from '../utils/dto';
+import { logAuditEvent } from './AuditService';
+import { startCascadeSearch, cancelCascade } from './GeoDispatchService';
+import { logger } from '../utils/logger';
+import { ServiceError } from '../utils/errors';
+
+const MAX_HANDSHAKE_ATTEMPTS = 3;
+
+export const LOCKER_SIZES_FOR: Record<string, string[]> = {
+    SMALL: ['S', 'M', 'L'],
+    MEDIUM: ['M', 'L'],
+    LARGE: ['L'],
+};
+
+// ── a) createRequest ────────────────────────────────────────────────────────
+
+export async function createRequest(
+    params: {
+        userId: number;
+        userName: string;
+        pickupLocation: string;
+        latitude: number | null;
+        longitude: number | null;
+        packageSize: string;
+        merchantId?: number;
+    }
+) {
+    const now = new Date().toISOString();
+
+    if (params.merchantId != null) {
+        const { rows } = await db.query(
+            "SELECT id FROM merchants WHERE id = $1 AND integration_status = 'active'",
+            [params.merchantId]
+        );
+        if (rows.length === 0) {
+            throw new ServiceError(400, 'BAD_REQUEST', 'El merchant especificado no existe o no está activo');
+        }
+    }
+
+    // 1. Verificar disponibilidad de lockers compatibles
+    const allowedLockerSizes = LOCKER_SIZES_FOR[params.packageSize] ?? ['S', 'M', 'L'];
+    const placeholders = allowedLockerSizes.map((_, i) => `$${i + 1}`).join(', ');
+    
+    const { rows: [locker] } = await db.query(
+        `SELECT id, label FROM lockers WHERE is_occupied = FALSE AND size_category IN (${placeholders}) ORDER BY id ASC LIMIT 1`,
+        allowedLockerSizes
+    );
+
+    if (!locker) {
+        throw new ServiceError(409, 'NO_LOCKERS_FREE', 'No hay taquillas disponibles para este tamaño de paquete');
+    }
+
+    const lat = params.latitude ?? null;
+    const lon = params.longitude ?? null;
+
+    // 2. Crear solicitud con locker ya asignado
+    const { rows: [inserted] } = await db.query(
+        `INSERT INTO pickup_requests (
+            client_id, pickup_location, latitude, longitude, pickup_location_geo, 
+            package_size, merchant_id, status, locker_id, created_at, updated_at
+         )
+         VALUES ($1, $2, $3::FLOAT8, $4::FLOAT8,
+                 CASE WHEN $3::FLOAT8 IS NOT NULL AND $4::FLOAT8 IS NOT NULL THEN ST_SetSRID(ST_MakePoint($4::FLOAT8, $3::FLOAT8), 4326)::geography ELSE NULL END,
+                 $5, $6, 'REQUESTED', $7, $8, $9) RETURNING *`,
+        [params.userId, params.pickupLocation, lat, lon,
+         params.packageSize, params.merchantId ?? null, locker.id, now, now]
+    );
+
+    // 3. Marcar locker como ocupado temporalmente
+    await db.query(
+        'UPDATE lockers SET is_occupied = TRUE, current_request_id = $1, updated_at = $2 WHERE id = $3',
+        [inserted.id, now, locker.id]
+    );
+
+    const dto = buildPickupRequestDTO(inserted);
+    logger.info({ requestId: dto.id, client: params.userName, locker: locker.label }, 'Request created with reserved locker');
+    
+    await logAuditEvent({ requestId: dto.id, eventType: 'REQUESTED', actorId: params.userId });
+
+    const safeDto = sanitizeForSocket(dto);
+    startCascadeSearch(dto.id, params.userId, safeDto);
+
+    return { dto };
+}
+
+// ── b) acceptRequest ────────────────────────────────────────────────────────
+
+export async function acceptRequest(
+    params: {
+        requestId: string;
+        driverId: number;
+        driverName: string;
+        driverLat?: number;
+        driverLon?: number;
+        radiusKm?: number;
+    }
+) {
+    const { requestId, driverId, driverName, driverLat, driverLon, radiusKm } = params;
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+    const handshakeCode = crypto.randomInt(1000, 9999).toString();
+    // PARA DEMO: Almacenamos en plano en lugar de hash para que el driver pueda verlo
+    const handshakeStore = handshakeCode;
+
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+
+        const { rows: [existing] } = await client.query(
+            'SELECT status, latitude, longitude, pickup_location_geo FROM pickup_requests WHERE id = $1',
+            [requestId]
+        );
+
+        if (!existing) {
+            await client.query('ROLLBACK');
+            throw new ServiceError(404, 'NOT_FOUND', 'Pedido no encontrado');
+        }
+        if (existing.status !== 'REQUESTED') {
+            await client.query('ROLLBACK');
+            logger.warn({ requestId, driver: driverName, currentStatus: existing.status }, 'Accept conflict: request no longer available');
+            throw new ServiceError(409, 'CONFLICT', 'El pedido ya no está disponible');
+        }
+
+        if (driverLat !== undefined && driverLon !== undefined && radiusKm !== undefined) {
+            if (existing.pickup_location_geo != null) {
+                const { rows: [distRow] } = await client.query(
+                    `SELECT ST_Distance(
+                       pickup_location_geo,
+                       ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+                     ) / 1000.0 AS distance_km
+                     FROM pickup_requests WHERE id = $3`,
+                    [driverLon, driverLat, requestId]
+                );
+                if (distRow && distRow.distance_km > radiusKm) {
+                    await client.query('ROLLBACK');
+                    logger.warn({ distanceKm: distRow.distance_km, radiusKm }, 'Geo reject: driver out of radius');
+                    throw new ServiceError(403, 'FORBIDDEN', 'La recogida está fuera de tu radio actual de alcance');
+                }
+            }
+        }
+
+        await client.query(`
+            UPDATE pickup_requests
+            SET status = 'CONFIRMATION_PENDING',
+                driver_id = $1,
+                handshake_code = $2,
+                handshake_expires_at = $3,
+                client_confirmed = FALSE,
+                driver_confirmed = FALSE,
+                updated_at = $4
+            WHERE id = $5 AND status = 'REQUESTED'
+        `, [driverId, handshakeStore, expiresAt, now, requestId]);
+
+        await client.query('COMMIT');
+    } catch (err) {
+        if (err instanceof ServiceError) throw err;
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+
+    logger.info({ requestId, driver: driverName }, 'Request accepted, pending confirmation');
+    await logAuditEvent({ requestId: Number(requestId), eventType: 'ASSIGNED', actorId: driverId });
+    cancelCascade(Number(requestId));
+
+    const { rows: [row] } = await db.query(`
+        SELECT r.*, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
+        FROM pickup_requests r
+        LEFT JOIN users u ON r.driver_id = u.id
+        WHERE r.id = $1
+    `, [requestId]);
+    const dto = buildPickupRequestDTO(row);
+
+    return { dto, handshakeCode };
+}
+
+// ── c) confirmHandshake ─────────────────────────────────────────────────────
+
+export async function confirmHandshake(
+    params: {
+        requestId: string;
+        clientId: number;
+        handshakeCode: string;
+        clientLat?: number;
+        clientLon?: number;
+    }
+) {
+    const { requestId, clientId, handshakeCode, clientLat, clientLon } = params;
+    const now = new Date().toISOString();
+
+    const { rows: [request] } = await db.query('SELECT * FROM pickup_requests WHERE id = $1', [requestId]);
+    if (!request) throw new ServiceError(404, 'NOT_FOUND', 'Pedido no encontrado');
+    if (request.client_id !== clientId) throw new ServiceError(403, 'FORBIDDEN', 'No eres el dueño de este pedido');
+    if (request.status !== 'CONFIRMATION_PENDING') throw new ServiceError(409, 'CONFLICT', 'El pedido no está en espera de confirmación');
+
+    // GPS proximity validation via PostGIS (optional)
+    if (clientLat !== undefined && clientLon !== undefined) {
+        const { rows: [distResult] } = await db.query(
+            `SELECT ST_Distance(
+               location,
+               ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+             ) / 1000.0 AS distance_km
+             FROM users WHERE id = $3 AND location IS NOT NULL`,
+            [clientLon, clientLat, request.driver_id]
+        );
+        if (distResult && distResult.distance_km > 0.05) {
+            throw new ServiceError(403, 'GPS_PROXIMITY_FAILED', 'Validación de proximidad fallida. Distancia excesiva.', {
+                distance_meters: Math.round(distResult.distance_km * 1000),
+            });
+        }
+    }
+
+    // Rate limiting
+    const { rows: [failedResult] } = await db.query(
+        "SELECT COUNT(*)::int as count FROM handshake_attempts WHERE request_id = $1 AND result = 'failure'",
+        [requestId]
+    );
+    const failedAttempts = failedResult.count as number;
+
+    if (failedAttempts >= MAX_HANDSHAKE_ATTEMPTS) {
+        logger.warn({ requestId, failedAttempts, clientId }, 'Handshake blocked: max attempts exceeded');
+        throw new ServiceError(423, 'RATE_LIMIT_PIN_EXCEEDED', 'Handshake bloqueado. Máximo de intentos alcanzado. Contacte soporte L1.');
+    }
+
+    if (new Date(request.handshake_expires_at) < new Date(now)) {
+        logger.warn({ requestId, expiresAt: request.handshake_expires_at }, 'Handshake expired');
+        await db.query(
+            `UPDATE pickup_requests SET status = $1, driver_id = NULL, handshake_code = NULL, handshake_expires_at = NULL, updated_at = $2 WHERE id = $3`,
+            ['REQUESTED', now, requestId]
+        );
+        throw new ServiceError(410, 'GONE', 'El código ha expirado. El pedido vuelve a estar disponible.');
+    }
+
+    logger.debug({ requestId }, 'Verifying handshake code');
+    const isValid = (handshakeCode === request.handshake_code);
+    const attemptNumber = failedAttempts + 1;
+
+    if (!isValid) {
+        await db.query(
+            `INSERT INTO handshake_attempts (request_id, driver_id, attempt_number, result, failure_reason, created_at)
+             VALUES ($1, $2, $3, 'failure', 'PIN_MISMATCH', $4)`,
+            [requestId, request.driver_id, attemptNumber, now]
+        );
+
+        await db.query(
+            'UPDATE pickup_requests SET handshake_attempts_count = handshake_attempts_count + 1, updated_at = $1 WHERE id = $2',
+            [now, requestId]
+        );
+
+        const newFailedCount = failedAttempts + 1;
+        logger.warn({ requestId, attempt: newFailedCount, max: MAX_HANDSHAKE_ATTEMPTS }, 'Handshake failed');
+
+        if (newFailedCount >= MAX_HANDSHAKE_ATTEMPTS) {
+            await logAuditEvent({ requestId: Number(requestId), eventType: 'RATE_LIMIT_BLOCK', actorId: clientId });
+            logger.error({ requestId }, 'Handshake blocked: max attempts reached, L1 intervention required');
+        }
+
+        throw new ServiceError(400, 'INVALID_CODE', 'Código incorrecto');
+    }
+
+    // Código correcto
+    await db.query(
+        `INSERT INTO handshake_attempts (request_id, driver_id, attempt_number, result, failure_reason, created_at)
+         VALUES ($1, $2, $3, 'success', NULL, $4)`,
+        [requestId, request.driver_id, attemptNumber, now]
+    );
+
+    const { rowCount } = await db.query(
+        `UPDATE pickup_requests SET status = $1, handshake_code = NULL, handshake_expires_at = NULL,
+         client_latitude = $2, client_longitude = $3, updated_at = $4
+         WHERE id = $5 AND status = 'CONFIRMATION_PENDING'`,
+        ['IN_PROGRESS', clientLat ?? null, clientLon ?? null, now, requestId]
+    );
+
+    if (rowCount === 0) {
+        throw new ServiceError(409, 'CONFLICT', 'El pedido ya no está disponible');
+    }
+
+    const { rows: [updatedRow] } = await db.query(`
+        SELECT r.*, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
+        FROM pickup_requests r
+        LEFT JOIN users u ON r.driver_id = u.id
+        WHERE r.id = $1
+    `, [requestId]);
+    const dto = buildPickupRequestDTO(updatedRow);
+    await logAuditEvent({ requestId: Number(requestId), eventType: 'HANDSHAKE_VALIDATED', actorId: clientId });
+
+    return { dto };
+}
+
+// ── d) depositRequest ───────────────────────────────────────────────────────
+
+export async function depositRequest(
+    params: {
+        requestId: string;
+        driverId: number;
+        lockerLabel?: string;
+    }
+) {
+    const { requestId, driverId, lockerLabel } = params;
+    const now = new Date().toISOString();
+
+    const plainCode = crypto.randomInt(100000, 999999).toString();
+
+    // Calcular medianoche local del área de servicio
+    const getEndOfDayLocal = (): string => {
+        const tz = 'Atlantic/Canary';
+        const nowDate = new Date();
+        const localDate = nowDate.toLocaleDateString('en-CA', { timeZone: tz });
+        const endOfDay = new Date(`${localDate}T23:59:59`);
+        const localEndOfDay = new Date(endOfDay.toLocaleString('en-US', { timeZone: tz }));
+        const utcEndOfDay = new Date(endOfDay.getTime() + (endOfDay.getTime() - localEndOfDay.getTime()));
+        return utcEndOfDay.toISOString();
+    };
+    const lockerCodeExpiresAt = getEndOfDayLocal();
+
+    const pgClient = await db.getClient();
+    let resultData: {
+        lockerCode: string;
+        lockerLabel: string;
+        clientId: number;
+        notification: any;
+    };
+
+    try {
+        await pgClient.query('BEGIN');
+
+        const { rows: [existing] } = await pgClient.query(
+            'SELECT status, driver_id, client_id, package_size FROM pickup_requests WHERE id = $1',
+            [requestId]
+        );
+
+        if (!existing) {
+            await pgClient.query('ROLLBACK');
+            throw new ServiceError(404, 'NOT_FOUND', 'Pedido no encontrado');
+        }
+        if (existing.status !== 'IN_PROGRESS') {
+            await pgClient.query('ROLLBACK');
+            logger.warn({ requestId, currentStatus: existing.status }, 'Deposit conflict: request not IN_PROGRESS');
+            throw new ServiceError(409, 'CONFLICT', 'El pedido no está en estado IN_PROGRESS');
+        }
+        if (existing.driver_id !== driverId) {
+            await pgClient.query('ROLLBACK');
+            throw new ServiceError(403, 'FORBIDDEN', 'No estás asignado a este pedido');
+        }
+
+        // Para la demo, el locker ya viene asignado desde el inicio (fase create)
+        const { rows: [assignedLocker] } = await pgClient.query(
+            'SELECT l.* FROM lockers l JOIN pickup_requests r ON r.locker_id = l.id WHERE r.id = $1',
+            [requestId]
+        );
+
+        const locker = assignedLocker;
+
+        if (!locker) {
+            await pgClient.query('ROLLBACK');
+            logger.warn({ requestId }, 'No locker assigned to this request');
+            throw new ServiceError(409, 'NO_LOCKER_ASSIGNED', 'No hay taquilla asignada a este pedido');
+        }
+
+        await pgClient.query(`
+            UPDATE lockers
+            SET is_occupied = TRUE, current_request_id = $1, access_code = $2, updated_at = $3
+            WHERE id = $4
+        `, [requestId, plainCode, now, locker.id]);
+
+        await pgClient.query(`
+            UPDATE pickup_requests
+            SET status = 'DEPOSITED', locker_id = $1, locker_code = $2, locker_code_expires_at = $3, updated_at = $4
+            WHERE id = $5
+        `, [locker.id, plainCode, lockerCodeExpiresAt, now, requestId]);
+
+        const { rows: [notifRow] } = await pgClient.query(`
+            INSERT INTO notifications (user_id, type, title, message, created_at)
+            VALUES ($1, 'LOCKER_READY', 'Tu paquete está listo', $2, $3) RETURNING *
+        `, [existing.client_id, `Locker ${locker.label}. Código: ${plainCode}`, now]);
+
+        await pgClient.query('COMMIT');
+
+        resultData = {
+            lockerCode: plainCode,
+            lockerLabel: locker.label,
+            clientId: existing.client_id,
+            notification: {
+                id: notifRow.id,
+                userId: notifRow.user_id,
+                type: notifRow.type,
+                title: notifRow.title,
+                message: notifRow.message,
+                read: notifRow.read === true,
+                createdAt: notifRow.created_at,
+            },
+        };
+    } catch (err) {
+        if (err instanceof ServiceError) throw err;
+        await pgClient.query('ROLLBACK');
+        throw err;
+    } finally {
+        pgClient.release();
+    }
+
+    logger.info({ requestId, locker: resultData.lockerLabel }, 'Request deposited');
+    await logAuditEvent({ requestId: Number(requestId), eventType: 'DEPOSITED', actorId: driverId });
+
+    const { rows: [row] } = await db.query(`
+        SELECT r.*, l.label as locker_label, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
+        FROM pickup_requests r
+        LEFT JOIN lockers l ON r.locker_id = l.id
+        LEFT JOIN users u ON r.driver_id = u.id
+        WHERE r.id = $1
+    `, [requestId]);
+
+    const dto = buildPickupRequestDTO(row);
+    dto.lockerCode = resultData.lockerCode;
+
+    return {
+        dto,
+        lockerCode: resultData.lockerCode,
+        clientId: resultData.clientId,
+        notification: resultData.notification,
+        locker: dto.locker,
+    };
+}
+
+// ── renewHandshake ──────────────────────────────────────────────────────────
+
+export async function renewHandshake(
+    params: { requestId: string; driverId: number }
+) {
+    const { requestId, driverId } = params;
+    const now = new Date().toISOString();
+    const newExpiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const newCode = crypto.randomInt(1000, 9999).toString();
+    const newCodeStore = newCode;
+
+    const client = await db.getClient();
+    try {
+        await client.query('BEGIN');
+
+        const { rows: [request] } = await client.query(
+            'SELECT * FROM pickup_requests WHERE id = $1', [requestId]
+        );
+        if (!request) {
+            await client.query('ROLLBACK');
+            throw new ServiceError(404, 'NOT_FOUND', 'Pedido no encontrado');
+        }
+        if (request.driver_id !== driverId) {
+            await client.query('ROLLBACK');
+            throw new ServiceError(403, 'FORBIDDEN', 'No estás asignado a este pedido');
+        }
+        if (request.status !== 'CONFIRMATION_PENDING') {
+            await client.query('ROLLBACK');
+            throw new ServiceError(409, 'CONFLICT', 'El pedido no está en espera de confirmación');
+        }
+
+        await client.query(`
+            UPDATE pickup_requests
+            SET handshake_code = $1, handshake_expires_at = $2, updated_at = $3
+            WHERE id = $4
+        `, [newCodeStore, newExpiresAt, now, requestId]);
+
+        await client.query('COMMIT');
+    } catch (err) {
+        if (err instanceof ServiceError) throw err;
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+
+    logger.info({ requestId, expiresAt: newExpiresAt }, 'Handshake renewed');
+    await logAuditEvent({ requestId: Number(requestId), eventType: 'HANDSHAKE_RENEWED', actorId: driverId });
+
+    const { rows: [row] } = await db.query(`
+        SELECT r.*, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
+        FROM pickup_requests r
+        LEFT JOIN users u ON r.driver_id = u.id
+        WHERE r.id = $1
+    `, [requestId]);
+    const dto = buildPickupRequestDTO(row);
+
+    return { dto, newCode };
+}
+
+// ── e) getClientRequests ────────────────────────────────────────────────────
+
+export async function getClientCurrent(params: { userId: number }) {
+    const { rows: [row] } = await db.query(`
+        SELECT r.*, l.label as locker_label, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
+        FROM pickup_requests r
+        LEFT JOIN lockers l ON r.locker_id = l.id
+        LEFT JOIN users u ON r.driver_id = u.id
+        WHERE r.client_id = $1 AND r.status != 'PICKED_UP'
+        ORDER BY r.created_at DESC
+        LIMIT 1
+    `, [params.userId]);
+
+    if (!row) return null;
+
+    const dto = buildPickupRequestDTO(row);
+    if (dto.status !== 'DEPOSITED') dto.lockerCode = null;
+    return dto;
+}
+
+export async function getClientHistory(params: { userId: number }) {
+    const { rows } = await db.query(`
+        SELECT r.*, l.label as locker_label, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
+        FROM pickup_requests r
+        LEFT JOIN lockers l ON r.locker_id = l.id
+        LEFT JOIN users u ON r.driver_id = u.id
+        WHERE r.client_id = $1
+        ORDER BY r.created_at DESC
+    `, [params.userId]);
+
+    return rows.map((row: any) => {
+        const dto = buildPickupRequestDTO(row);
+        if (dto.status !== 'DEPOSITED') dto.lockerCode = null;
+        return dto;
+    });
+}
+
+// ── getPendingRequests ──────────────────────────────────────────────────────
+
+export async function getPendingRequests(
+    params: { driverId: number; lat?: number | null; lon?: number | null; radius?: number | null }
+) {
+    const { lat, lon, radius, driverId } = params;
+
+    // Si hay coordenadas válidas, filtrar con PostGIS ST_DWithin
+    if (lat != null && lon != null && radius != null && !isNaN(lat) && !isNaN(lon) && !isNaN(radius)) {
+        logger.debug({ driverId, lat, lon, radiusKm: radius }, 'Filtering pending requests by PostGIS');
+
+        const { rows } = await db.query(`
+            SELECT *,
+                   CASE WHEN pickup_location_geo IS NOT NULL
+                        THEN ST_Distance(
+                               pickup_location_geo,
+                               ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+                             ) / 1000.0
+                        ELSE NULL
+                   END AS distance_km
+            FROM pickup_requests
+            WHERE status = 'REQUESTED'
+              AND (
+                pickup_location_geo IS NULL
+                OR ST_DWithin(
+                     pickup_location_geo,
+                     ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+                     $3 * 1000
+                   )
+              )
+            ORDER BY distance_km ASC NULLS LAST
+        `, [lon, lat, radius]);
+
+        return rows.map((row: any) => buildPickupRequestDTO(row));
+    }
+
+    // Sin coordenadas: devolver todos los pedidos pendientes
+    const { rows } = await db.query(`
+        SELECT * FROM pickup_requests
+        WHERE status = 'REQUESTED'
+        ORDER BY created_at DESC
+    `);
+
+    return rows.map((row: any) => buildPickupRequestDTO(row));
+}
+
+// ── getDriverPickups ────────────────────────────────────────────────────────
+
+export async function getDriverPickups(params: { driverId: number }) {
+    const { rows } = await db.query(`
+        SELECT r.*, l.label as locker_label, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
+        FROM pickup_requests r
+        LEFT JOIN lockers l ON r.locker_id = l.id
+        LEFT JOIN users u ON r.driver_id = u.id
+        WHERE r.driver_id = $1 AND r.status IN ('CONFIRMATION_PENDING', 'IN_PROGRESS', 'DEPOSITED', 'PICKED_UP')
+        ORDER BY r.updated_at DESC
+    `, [params.driverId]);
+
+    return rows.map((row: any) => buildPickupRequestDTO(row));
+}
