@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { useState, useEffect, useRef } from 'react';
 import { Navigation } from 'lucide-react';
 import L from 'leaflet';
@@ -239,19 +239,6 @@ export default function ClientTrackingMap({
           </Popup>
         </Marker>
 
-        {route.length > 1 && (
-          <Polyline
-            positions={route}
-            pathOptions={{
-              color: '#007AFF',
-              weight: 4,
-              opacity: 0.9,
-              lineCap: 'round',
-              lineJoin: 'round',
-              dashArray: '2, 10',
-            }}
-          />
-        )}
       </MapContainer>
     </div>
   );
