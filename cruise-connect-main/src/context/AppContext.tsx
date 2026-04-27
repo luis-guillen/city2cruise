@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { PickupRequest } from "@/services/api";
-import { getClientMine, getPendingRequests, getDriverPickups } from "@/services/api";
+import { getClientMine, getPendingRequests, getDriverPickups, logoutUser } from "@/services/api";
 
 type Role = "CLIENT" | "DRIVER" | "ADMIN" | null;
 
@@ -23,32 +23,19 @@ interface AppState {
 const AppContext = createContext<AppState | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [userName, setUserName] = useState(sessionStorage.getItem('userName') || "");
-  const [role, setRole] = useState<Role>(sessionStorage.getItem('role') as Role || null);
-  const [token, setToken] = useState<string | null>(sessionStorage.getItem('token'));
+  const [userName, setUserName] = useState(localStorage.getItem('userName') || "");
+  const [role, setRole] = useState<Role>(localStorage.getItem('role') as Role || null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
 
   const [currentRequest, setCurrentRequest] = useState<PickupRequest | null>(null);
   const [pendingRequests, setPendingRequests] = useState<PickupRequest[]>([]);
   const [driverPickups, setDriverPickups] = useState<PickupRequest[]>([]);
   const [homeCoords, setHomeCoords] = useState<{ lat: number; lon: number } | null>(() => {
-    const stored = sessionStorage.getItem('homeCoords');
+    const stored = localStorage.getItem('homeCoords');
     return stored ? JSON.parse(stored) : null;
   });
 
-  const setUser = (name: string, r: Role, t: string, hc?: { lat: number; lon: number } | null) => {
-    setUserName(name);
-    setRole(r);
-    setToken(t);
-    sessionStorage.setItem('userName', name);
-    sessionStorage.setItem('role', r || '');
-    sessionStorage.setItem('token', t);
-    if (hc) {
-      setHomeCoords(hc);
-      sessionStorage.setItem('homeCoords', JSON.stringify(hc));
-    }
-  };
-
-  const logout = () => {
+  const clearLocalState = useCallback(() => {
     setUserName("");
     setRole(null);
     setToken(null);
@@ -56,8 +43,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPendingRequests([]);
     setDriverPickups([]);
     setHomeCoords(null);
-    sessionStorage.clear();
+    localStorage.removeItem('token');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('role');
+    localStorage.removeItem('homeCoords');
+  }, []);
+
+  const setUser = (name: string, r: Role, t: string, hc?: { lat: number; lon: number } | null) => {
+    setUserName(name);
+    setRole(r);
+    setToken(t);
+    localStorage.setItem('userName', name);
+    localStorage.setItem('role', r || '');
+    localStorage.setItem('token', t);
+    if (hc) {
+      setHomeCoords(hc);
+      localStorage.setItem('homeCoords', JSON.stringify(hc));
+    }
   };
+
+  const logout = useCallback(async () => {
+    await logoutUser();
+    clearLocalState();
+  }, [clearLocalState]);
+
+  // El interceptor de Axios dispara este evento cuando el refresh falla
+  useEffect(() => {
+    const handler = () => clearLocalState();
+    window.addEventListener('auth:logout', handler);
+    return () => window.removeEventListener('auth:logout', handler);
+  }, [clearLocalState]);
 
   const refreshData = useCallback(async () => {
     if (!token) return;
@@ -74,9 +89,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (err: any) {
       console.error("Error refreshing data:", err);
-      if (err.response?.status === 401) {
-        logout();
-      }
+      // El interceptor ya maneja el 401 → auth:logout
     }
   }, [token, role]);
 

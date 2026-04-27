@@ -4,6 +4,7 @@ import { config } from "../config/env";
 import { verifyToken } from "../auth/jwt";
 import { logger } from "../utils/logger";
 import { db } from "../db/database";
+import { validateAndRecord, GpsValidationResult } from "../services/GpsValidationService";
 
 let io: Server;
 
@@ -17,6 +18,7 @@ export interface ActiveDriver {
 interface DriverLocationPayload {
     lat: number;
     lon: number;
+    deviceTs?: number;   // epoch ms from navigator.geolocation — used for clock-drift check
     routeProgress?: number;
     routeTail?: Array<{ lat: number; lon: number }>;
 }
@@ -140,6 +142,19 @@ export const initSockets = (httpServer: HttpServer) => {
         // Intercept driver location updates
         socket.on("driver:location:update", async (data: DriverLocationPayload) => {
             if (user.role === 'DRIVER') {
+                if (!Number.isFinite(data.lat) || !Number.isFinite(data.lon)) return;
+
+                // Anti-spoofing: validate clock drift + speed before accepting position
+                const gpsResult = await validateAndRecord(
+                    user.id, data.lat, data.lon,
+                    Number.isFinite(data.deviceTs) ? data.deviceTs : null
+                ).catch((): GpsValidationResult => ({ ok: true })); // non-blocking — allow on service error
+
+                if (!gpsResult.ok) {
+                    socket.emit('gps:anomaly', { anomaly: gpsResult.anomaly, reason: gpsResult.reason });
+                    return; // drop the spoofed position
+                }
+
                 logger.debug({ driverId: user.id, lat: data.lat, lon: data.lon }, 'Driver location update');
                 activeDrivers.set(user.id, {
                     userId: user.id,

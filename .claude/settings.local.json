@@ -3,7 +3,36 @@
     "allow": [
       "Bash(npx ts-node:*)",
       "Bash(npx tsc:*)",
-      "Bash(ipconfig getifaddr:*)"
+      "Bash(ipconfig getifaddr:*)",
+      "Bash(python3 -c \"import docx; print\\('ok'\\)\")",
+      "Bash(python3 -c \"from zipfile import ZipFile; import xml.etree.ElementTree as ET; print\\('ok zipfile'\\)\")",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(DATABASE_URL_TEST='postgres://luisguillen@localhost:5432/cruise_connect_test' npx jest --testPathPattern=\"auth\\\\.\\(refresh|bruteforce\\)\" --forceExit --no-coverage --runInBand)",
+      "Bash(DATABASE_URL_TEST='postgres://luisguillen@localhost:5432/cruise_connect_test' npx jest --testPathPatterns=\"auth\\\\.\\(refresh|bruteforce\\)\" --forceExit --no-coverage --runInBand)",
+      "Bash(psql -U luisguillen -lqt)",
+      "Bash(psql -U luisguillen -c \"SELECT datname FROM pg_database WHERE datname LIKE '%cruise%';\")",
+      "Bash(npx jest *)",
+      "Bash(npm test *)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(psql -h localhost -p 5432 -U pablocabaleironoda -l)",
+      "Bash(brew services *)",
+      "Read(//usr/local/**)",
+      "Bash(PGPASSWORD=cruise_secret psql -h localhost -p 5432 -U cruise -d cruise_connect_test -c \"\\\\dt\")",
+      "Bash(PGPASSWORD=cruise_secret /opt/homebrew/Cellar/libpq/18.0/bin/psql -h localhost -p 5432 -U cruise -d cruise_connect_test -c \"\\\\dt\")",
+      "Bash(docker compose *)",
+      "Bash(PGPASSWORD=cruise_secret /opt/homebrew/Cellar/libpq/18.0/bin/psql -h localhost -p 5432 -U cruise -d cruise_connect -c \"SELECT version\\(\\);\")",
+      "Bash(PGPASSWORD=cruise_secret /opt/homebrew/Cellar/libpq/18.0/bin/psql -h localhost -p 5432 -U cruise -d cruise_connect -c \"CREATE DATABASE cruise_connect_test WITH OWNER cruise;\")",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test npm test -- --forceExit)",
+      "Bash(node -e \"console.log\\(process.env.NODE_ENV\\)\")",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test npm test -- --forceExit --testPathPattern integration)",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --testPathPattern=integration)",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/integration.test.ts)",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/auth.bruteforce.test.ts src/__tests__/cascade-search.test.ts src/__tests__/integration.test.ts)",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/auth.refresh.test.ts)",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/renew-handshake.test.ts)",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/auth.refresh.test.ts src/__tests__/renew-handshake.test.ts)",
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/cascade-search.test.ts)"
     ]
   }
 }
