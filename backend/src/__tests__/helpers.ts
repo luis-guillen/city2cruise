@@ -88,6 +88,9 @@ export const truncateTestDb = async () => {
             lockers,
             cruise_manifest,
             merchants,
+            refresh_tokens,
+            login_attempts,
+            gps_positions,
             users
         CASCADE
     `);

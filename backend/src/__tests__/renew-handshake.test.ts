@@ -9,7 +9,7 @@ import {
 } from './helpers';
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-import bcrypt from 'bcrypt';
+import { decryptField } from '../utils/crypto';
 import { getAuditTrail } from '../services/AuditService';
 
 jest.mock('../sockets/io', () => ({
@@ -87,8 +87,8 @@ describe('Renew Handshake', () => {
         );
         expect(afterData.handshake_expires_at).not.toBe(beforeData.handshake_expires_at);
         
-        const isMatch = await bcrypt.compare(handshakeCode, afterData.handshake_code);
-        expect(isMatch).toBe(true);
+        const decrypted = decryptField(afterData.handshake_code);
+        expect(decrypted).toBe(handshakeCode);
     });
 
     it('debería retornar el nuevo código en la respuesta', async () => {

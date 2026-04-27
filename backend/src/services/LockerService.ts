@@ -3,6 +3,7 @@ import { buildPickupRequestDTO } from '../utils/dto';
 import { logAuditEvent } from './AuditService';
 import { logger } from '../utils/logger';
 import { ServiceError } from '../utils/errors';
+import { decryptField } from '../utils/crypto';
 
 // ── a) openLocker ────────────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ export async function openLocker(
 
     let matchedRow: any = null;
     for (const row of depositedRows) {
-        if (row.locker_code && row.locker_code === lockerCode) {
+        if (row.locker_code && decryptField(row.locker_code) === lockerCode) {
             matchedRow = row;
             break;
         }

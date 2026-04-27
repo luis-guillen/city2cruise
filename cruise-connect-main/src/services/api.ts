@@ -2,16 +2,81 @@ import axios from 'axios';
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:9000/api',
+  withCredentials: true,  // envía cookie HttpOnly del refresh token
 });
 
-// Add interceptor to inject JWT token
+// ── Request interceptor: inyectar access token ────────────────────────────────
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('token');
+  const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+// ── Response interceptor: renovar access token automáticamente si expira ──────
+let isRefreshing = false;
+let pendingQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
+
+function processQueue(error: unknown, token: string | null) {
+  pendingQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error);
+    else resolve(token!);
+  });
+  pendingQueue = [];
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (error.response?.status !== 401 || originalRequest._retried) {
+      return Promise.reject(error);
+    }
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        pendingQueue.push({ resolve, reject });
+      }).then((token) => {
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      });
+    }
+
+    originalRequest._retried = true;
+    isRefreshing = true;
+
+    try {
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:9000/api'}/auth/refresh`,
+        {},
+        { withCredentials: true }
+      );
+
+      const newToken: string = data.token;
+      localStorage.setItem('token', newToken);
+      if (data.user) {
+        localStorage.setItem('userName', data.user.name);
+        localStorage.setItem('role', data.user.role);
+      }
+
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      processQueue(null, newToken);
+      return api(originalRequest);
+    } catch (refreshError) {
+      processQueue(refreshError, null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('role');
+      localStorage.removeItem('homeCoords');
+      window.dispatchEvent(new CustomEvent('auth:logout'));
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
+  }
+);
 
 export interface PickupRequest {
   id: string;
@@ -30,7 +95,7 @@ export interface PickupRequest {
   driverLongitude?: number | null;
   locker?: { id: number; label: string } | null;
   lockerCode?: string | null;
-  lockerNumber?: string; // For backward compatibility with mockup UI
+  lockerNumber?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,6 +120,25 @@ export async function registerUser(name: string, email: string, password: string
 export async function loginUser(email: string, password: string): Promise<{ token: string; user: { id: number, name: string, role: string, latitude?: number | null, longitude?: number | null } }> {
   const res = await api.post('/auth/login', { email, password });
   return res.data;
+}
+
+/** AUTH: Logout (revoca refresh token en servidor) */
+export async function logoutUser(): Promise<void> {
+  try {
+    await api.post('/auth/logout');
+  } catch {
+    // Ignorar errores de red en logout — limpiar estado local igualmente
+  }
+}
+
+/** AUTH: Logout from all devices */
+export async function logoutAllDevices(): Promise<void> {
+  await api.post('/auth/logout-all');
+}
+
+/** AUTH: Change password */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await api.patch('/auth/password', { currentPassword, newPassword });
 }
 
 /** CLIENT: Create a new pickup request */
@@ -120,11 +204,7 @@ export async function getDriverPickups(): Promise<PickupRequest[]> {
 
 /** DRIVER: Accept a pending request */
 export async function handleAcceptRequest(requestId: string, driverLat?: number, driverLon?: number, radiusKm?: number): Promise<PickupRequest> {
-  const payload = {
-    driverLat,
-    driverLon,
-    radiusKm
-  };
+  const payload = { driverLat, driverLon, radiusKm };
   const res = await api.post(`/requests/${requestId}/accept`, payload);
   return res.data;
 }

@@ -119,6 +119,38 @@ CREATE TABLE IF NOT EXISTS handshake_attempts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ─── REFRESH TOKENS ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  family_id TEXT NOT NULL,
+  issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ NULL,
+  replaced_by TEXT NULL
+);
+
+-- ─── LOGIN ATTEMPTS ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id SERIAL PRIMARY KEY,
+  ip TEXT NOT NULL,
+  email TEXT NOT NULL,
+  success BOOLEAN NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── GPS POSITIONS ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS gps_positions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  lat DOUBLE PRECISION NOT NULL,
+  lon DOUBLE PRECISION NOT NULL,
+  accuracy_m DOUBLE PRECISION NULL,
+  device_ts TIMESTAMPTZ NULL,
+  server_ts TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ─── CRUISE MANIFEST ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS cruise_manifest (
   id SERIAL PRIMARY KEY,
@@ -156,4 +188,11 @@ CREATE INDEX IF NOT EXISTS idx_cruise_manifest_scheduled_arrival ON cruise_manif
 CREATE INDEX IF NOT EXISTS idx_users_location ON users USING GIST(location);
 CREATE INDEX IF NOT EXISTS idx_pickup_requests_location ON pickup_requests USING GIST(pickup_location_geo);
 CREATE INDEX IF NOT EXISTS idx_merchants_location ON merchants USING GIST(location);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family_id ON refresh_tokens(family_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts(ip, created_at);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_email_created ON login_attempts(email, created_at);
+CREATE INDEX IF NOT EXISTS idx_gps_positions_user_ts ON gps_positions(user_id, server_ts DESC);
 `;

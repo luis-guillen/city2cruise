@@ -5,6 +5,8 @@ import { logAuditEvent } from './AuditService';
 import { startCascadeSearch, cancelCascade } from './GeoDispatchService';
 import { logger } from '../utils/logger';
 import { ServiceError } from '../utils/errors';
+import { encryptField, decryptField } from '../utils/crypto';
+import { config } from '../config/env';
 
 const MAX_HANDSHAKE_ATTEMPTS = 3;
 
@@ -102,8 +104,7 @@ export async function acceptRequest(
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     const handshakeCode = crypto.randomInt(1000, 9999).toString();
-    // PARA DEMO: Almacenamos en plano en lugar de hash para que el driver pueda verlo
-    const handshakeStore = handshakeCode;
+    const handshakeStore = encryptField(handshakeCode);
 
     const client = await db.getClient();
     try {
@@ -202,20 +203,24 @@ export async function confirmHandshake(
     if (request.client_id !== clientId) throw new ServiceError(403, 'FORBIDDEN', 'No eres el dueño de este pedido');
     if (request.status !== 'CONFIRMATION_PENDING') throw new ServiceError(409, 'CONFLICT', 'El pedido no está en espera de confirmación');
 
-    // GPS proximity validation via PostGIS (optional)
+    // GPS proximity validation via PostGIS (mandatory when client coordinates are provided)
     if (clientLat !== undefined && clientLon !== undefined) {
         const { rows: [distResult] } = await db.query(
             `SELECT ST_Distance(
                location,
                ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
-             ) / 1000.0 AS distance_km
+             ) AS distance_m
              FROM users WHERE id = $3 AND location IS NOT NULL`,
             [clientLon, clientLat, request.driver_id]
         );
-        if (distResult && distResult.distance_km > 0.05) {
-            throw new ServiceError(403, 'GPS_PROXIMITY_FAILED', 'Validación de proximidad fallida. Distancia excesiva.', {
-                distance_meters: Math.round(distResult.distance_km * 1000),
-            });
+        if (distResult) {
+            const maxMeters = config.gpsProximityMaxMeters;
+            if (distResult.distance_m > maxMeters) {
+                throw new ServiceError(403, 'GPS_PROXIMITY_FAILED', 'Validación de proximidad fallida. Distancia excesiva.', {
+                    distance_meters: Math.round(distResult.distance_m),
+                    max_meters: maxMeters,
+                });
+            }
         }
     }
 
@@ -241,7 +246,8 @@ export async function confirmHandshake(
     }
 
     logger.debug({ requestId }, 'Verifying handshake code');
-    const isValid = (handshakeCode === request.handshake_code);
+    const storedCode = decryptField(request.handshake_code);
+    const isValid = storedCode !== null && handshakeCode === storedCode;
     const attemptNumber = failedAttempts + 1;
 
     if (!isValid) {
@@ -367,17 +373,19 @@ export async function depositRequest(
             throw new ServiceError(409, 'NO_LOCKER_ASSIGNED', 'No hay taquilla asignada a este pedido');
         }
 
+        const encryptedCode = encryptField(plainCode);
+
         await pgClient.query(`
             UPDATE lockers
             SET is_occupied = TRUE, current_request_id = $1, access_code = $2, updated_at = $3
             WHERE id = $4
-        `, [requestId, plainCode, now, locker.id]);
+        `, [requestId, encryptedCode, now, locker.id]);
 
         await pgClient.query(`
             UPDATE pickup_requests
             SET status = 'DEPOSITED', locker_id = $1, locker_code = $2, locker_code_expires_at = $3, updated_at = $4
             WHERE id = $5
-        `, [locker.id, plainCode, lockerCodeExpiresAt, now, requestId]);
+        `, [locker.id, encryptedCode, lockerCodeExpiresAt, now, requestId]);
 
         const { rows: [notifRow] } = await pgClient.query(`
             INSERT INTO notifications (user_id, type, title, message, created_at)
@@ -440,7 +448,7 @@ export async function renewHandshake(
     const now = new Date().toISOString();
     const newExpiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const newCode = crypto.randomInt(1000, 9999).toString();
-    const newCodeStore = newCode;
+    const newCodeStore = encryptField(newCode);
 
     const client = await db.getClient();
     try {
@@ -507,7 +515,11 @@ export async function getClientCurrent(params: { userId: number }) {
     if (!row) return null;
 
     const dto = buildPickupRequestDTO(row);
-    if (dto.status !== 'DEPOSITED') dto.lockerCode = null;
+    if (dto.status !== 'DEPOSITED') {
+        dto.lockerCode = null;
+    } else {
+        dto.lockerCode = decryptField(dto.lockerCode);
+    }
     return dto;
 }
 
@@ -523,7 +535,11 @@ export async function getClientHistory(params: { userId: number }) {
 
     return rows.map((row: any) => {
         const dto = buildPickupRequestDTO(row);
-        if (dto.status !== 'DEPOSITED') dto.lockerCode = null;
+        if (dto.status !== 'DEPOSITED') {
+            dto.lockerCode = null;
+        } else {
+            dto.lockerCode = decryptField(dto.lockerCode);
+        }
         return dto;
     });
 }

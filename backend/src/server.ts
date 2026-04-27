@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { config } from './config/env';
 import apiRouter from './routes';
 import debugRouter from './routes/debug';
@@ -11,9 +12,37 @@ export const buildServer = (): Express => {
     const app = express();
 
     // 1. Cabeceras de seguridad HTTP (Helmet)
-    app.use(helmet());
+    app.use(helmet({
+        // HSTS: 1 año, incluir subdomains
+        hsts: {
+            maxAge: 31_536_000,
+            includeSubDomains: true,
+            preload: true,
+        },
+        // CSP orientado a la API: bloquea todo lo que no sea el propio origen.
+        // La SPA (Vite) tiene su propio CSP servido desde el CDN/Nginx.
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'none'"],
+                objectSrc: ["'none'"],
+                frameAncestors: ["'none'"],
+            },
+        },
+        // Evita que el navegador infiera MIME types
+        noSniff: true,
+        // Oculta la cabecera X-Powered-By
+        hidePoweredBy: true,
+        // Bloquea iframes de cualquier origen
+        frameguard: { action: 'deny' },
+        // XSS filter legacy (IE)
+        xssFilter: true,
+    }));
 
-    // 2. CORS
+    // 2. Cookie parser (necesario para refresh token HttpOnly)
+    app.use(cookieParser());
+
+    // 3. CORS
     const allowedOrigins = [config.frontendUrl, 'http://localhost:9100', 'http://localhost:9101', 'http://localhost:9102', 'http://localhost:9103'];
     app.use(cors({
         origin: (origin, callback) => {
@@ -32,21 +61,21 @@ export const buildServer = (): Express => {
         credentials: true
     }));
 
-    // 3. Rate Limiter Global
+    // 4. Rate Limiter Global
     app.use(globalLimiter);
 
-    // 4. Body Parser con límite de tamaño (previene payload abuse)
+    // 5. Body Parser con límite de tamaño (previene payload abuse)
     app.use(express.json({ limit: '16kb' }));
 
-    // 5. Rutas
+    // 6. Rutas
     app.use('/api', apiRouter);
 
-    // 6. Debug (solo desarrollo)
+    // 7. Debug (solo desarrollo)
     if (process.env.NODE_ENV !== 'production') {
         app.use('/debug', debugRouter);
     }
 
-    // 7. Middleware de Manejo de Errores Global (Debe ser el último)
+    // 8. Middleware de Manejo de Errores Global (Debe ser el último)
     app.use(globalErrorHandler);
 
     return app;
