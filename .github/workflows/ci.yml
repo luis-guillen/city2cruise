@@ -10,6 +10,19 @@ jobs:
   backend-test:
     name: Backend — build & test
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:15-3.3
+        env:
+          POSTGRES_DB: cruise_connect_test
+          POSTGRES_PASSWORD: password123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,7 +32,11 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: cd backend && npm ci
       - run: cd backend && npm run build
-      - run: cd backend && npm test
+      - name: Run backend tests
+        env:
+          DATABASE_URL_TEST: postgres://postgres:password123@localhost:5432/cruise_connect_test
+          JWT_SECRET: test-secret
+        run: cd backend && npm test
 
   frontend-build:
     name: Frontend — build

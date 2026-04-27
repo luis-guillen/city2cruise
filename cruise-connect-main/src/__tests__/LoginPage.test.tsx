@@ -37,35 +37,36 @@ function renderLoginPage() {
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
   });
 
   it('renders login tab by default', () => {
     renderLoginPage();
-    expect(screen.getByRole('button', { name: /iniciar sesión/i })).toBeDefined();
+    expect(screen.getAllByRole('button', { name: /iniciar sesión/i })[0]).toBeDefined();
     expect(screen.getByRole('button', { name: /registrarse/i })).toBeDefined();
   });
 
   it('login tab shows email and password fields', () => {
     renderLoginPage();
-    expect(screen.getByPlaceholderText(/correo@ejemplo\.com/i)).toBeDefined();
+    expect(screen.getByPlaceholderText(/tu@email\.com/i)).toBeDefined();
     expect(screen.getByPlaceholderText(/mínimo 6 caracteres/i)).toBeDefined();
     // Name field should NOT be visible in login mode
-    expect(screen.queryByPlaceholderText(/ej: maría/i)).toBeNull();
+    expect(screen.queryByPlaceholderText(/tu nombre/i)).toBeNull();
   });
 
   it('register tab shows name, email and password fields', async () => {
     renderLoginPage();
     fireEvent.click(screen.getByRole('button', { name: /registrarse/i }));
-    expect(screen.getByPlaceholderText(/ej: maría/i)).toBeDefined();
-    expect(screen.getByPlaceholderText(/correo@ejemplo\.com/i)).toBeDefined();
+    expect(screen.getByPlaceholderText(/tu nombre/i)).toBeDefined();
+    expect(screen.getByPlaceholderText(/tu@email\.com/i)).toBeDefined();
     expect(screen.getByPlaceholderText(/mínimo 6 caracteres/i)).toBeDefined();
   });
 
   it('does not submit if email or password are empty', async () => {
     const { loginUser } = await import('@/services/api');
     renderLoginPage();
-    // Submit with empty fields (HTML required validation prevents API call)
-    fireEvent.submit(screen.getByRole('button', { name: /entrar/i }).closest('form')!);
+    // In current implementation, handleSubmit does validation
+    fireEvent.submit(screen.getAllByRole('button', { name: /iniciar sesión/i })[1].closest('form')!);
     await waitFor(() => {
       expect(loginUser).not.toHaveBeenCalled();
     });
@@ -75,17 +76,17 @@ describe('LoginPage', () => {
     const { loginUser } = await import('@/services/api');
     vi.mocked(loginUser).mockResolvedValue({
       token: 'test-token',
-      user: { id: 1, name: 'Test', role: 'CLIENT', latitude: null, longitude: null },
+      user: { id: 1, name: 'Test', role: 'CLIENT', latitude: null, longitude: null } as any,
     });
 
     renderLoginPage();
-    fireEvent.change(screen.getByPlaceholderText(/correo@ejemplo\.com/i), {
+    fireEvent.change(screen.getByPlaceholderText(/tu@email\.com/i), {
       target: { value: 'test@example.com' },
     });
     fireEvent.change(screen.getByPlaceholderText(/mínimo 6 caracteres/i), {
       target: { value: 'password123' },
     });
-    fireEvent.submit(screen.getByRole('button', { name: /entrar/i }).closest('form')!);
+    fireEvent.submit(screen.getAllByRole('button', { name: /iniciar sesión/i })[1].closest('form')!);
 
     await waitFor(() => {
       expect(loginUser).toHaveBeenCalledWith('test@example.com', 'password123');

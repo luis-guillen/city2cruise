@@ -87,7 +87,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const myPickups = await getDriverPickups();
         setDriverPickups(myPickups);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error refreshing data:", err);
       // El interceptor ya maneja el 401 → auth:logout
     }

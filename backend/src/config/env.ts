@@ -46,4 +46,22 @@ export const config = {
     // Viewbox para Nominatim: limita búsquedas al área de servicio (lon_min,lat_min,lon_max,lat_max)
     SERVICE_AREA_VIEWBOX: process.env.SERVICE_AREA_VIEWBOX || '-15.55,27.99,-15.35,28.22',
     serviceTimezone: process.env.SERVICE_TIMEZONE || 'Atlantic/Canary',
+    stripe: {
+        secretKey: (() => {
+            const key = process.env.STRIPE_SECRET_KEY;
+            if (!key && process.env.NODE_ENV === 'production') {
+                throw new Error('FATAL: STRIPE_SECRET_KEY es obligatorio en producción.');
+            }
+            return key || '';
+        })(),
+        webhookSecret: (() => {
+            const secret = process.env.STRIPE_WEBHOOK_SECRET;
+            if (!secret && process.env.NODE_ENV === 'production') {
+                throw new Error('FATAL: STRIPE_WEBHOOK_SECRET es obligatorio en producción.');
+            }
+            return secret || '';
+        })(),
+        currency: process.env.STRIPE_CURRENCY || 'eur',
+    },
+    noShowRefundMinutes: parseInt(process.env.NO_SHOW_REFUND_MINUTES || '30', 10),
 };

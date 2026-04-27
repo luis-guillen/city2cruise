@@ -32,7 +32,14 @@
       "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/auth.refresh.test.ts)",
       "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/renew-handshake.test.ts)",
       "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/auth.refresh.test.ts src/__tests__/renew-handshake.test.ts)",
-      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/cascade-search.test.ts)"
+      "Bash(DATABASE_URL_TEST=postgres://cruise:cruise_secret@localhost:5432/cruise_connect_test NODE_ENV=test npx jest --forceExit --no-coverage --runInBand src/__tests__/cascade-search.test.ts)",
+      "Bash(node -e \"console.log\\(require\\('stripe/package.json'\\).version\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['version']\\)\")",
+      "Bash(node -e \"const Stripe = require\\('stripe'\\); const s = new Stripe\\('sk_test_x'\\); console.log\\(Stripe.LATEST_API_VERSION || 'n/a'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('types',''\\), d.get\\('typings',''\\), d.get\\('exports',{}\\).get\\('.',{}\\).get\\('types',''\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['exports'].get\\('.',''\\),indent=2\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(sorted\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)\\)\\)\")"
     ]
   }
 }

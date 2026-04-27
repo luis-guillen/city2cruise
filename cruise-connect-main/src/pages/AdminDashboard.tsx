@@ -4,8 +4,8 @@ import { useApp } from '@/context/AppContext';
 import {
   getAdminUsers, deleteAdminUser,
   getMetricsThroughput, getMetricsTiming, getFleetStatus,
-  getAuditTrailByRequest,
-  ThroughputMetrics, TimingMetrics, FleetStatus, AuditEvent
+  getAuditTrailByRequest, getAdminPayments, adminRefundPayment,
+  ThroughputMetrics, TimingMetrics, FleetStatus, AuditEvent, PaymentRecord
 } from '@/services/api';
 import GlassNavbar from '@/components/ios/GlassNavbar';
 import GlassCard from '@/components/ios/GlassCard';
@@ -15,7 +15,8 @@ import { toast } from 'sonner';
 import {
   BarChart3, Users, Truck, Shield, LogOut,
   RefreshCw, Search, UserX, Clock, Package,
-  Activity, Lock, TrendingUp
+  Activity, Lock, TrendingUp, CreditCard, RotateCcw, CheckCircle2,
+  XCircle, AlertCircle, MinusCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -51,6 +52,9 @@ export default function AdminDashboard() {
   const [fleet, setFleet] = useState<FleetStatus | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [auditSearchId, setAuditSearchId] = useState('');
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [refundingId, setRefundingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,6 +82,26 @@ export default function AdminDashboard() {
     } catch { toast.error('Error al eliminar'); }
   };
 
+  const loadPayments = async () => {
+    setPaymentsLoading(true);
+    try {
+      const data = await getAdminPayments();
+      setPayments(data);
+    } catch { toast.error('Error cargando pagos'); }
+    finally { setPaymentsLoading(false); }
+  };
+
+  const handleRefund = async (requestId: number) => {
+    if (!confirm('¿Emitir reembolso para este pedido?')) return;
+    setRefundingId(requestId);
+    try {
+      await adminRefundPayment(requestId);
+      toast.success('Reembolso emitido');
+      await loadPayments();
+    } catch { toast.error('Error al emitir reembolso'); }
+    finally { setRefundingId(null); }
+  };
+
   const handleAuditSearch = async () => {
     const id = parseInt(auditSearchId);
     if (isNaN(id) || id < 1) { toast.error('ID inválido'); return; }
@@ -98,8 +122,15 @@ export default function AdminDashboard() {
     { id: 'metrics', label: 'Métricas' },
     { id: 'fleet', label: 'Flota' },
     { id: 'users', label: 'Usuarios' },
+    { id: 'payments', label: 'Pagos' },
     { id: 'audit', label: 'Auditoría' },
   ];
+
+  useEffect(() => {
+    if (activeTab === 'payments' && payments.length === 0 && !paymentsLoading) {
+      loadPayments();
+    }
+  }, [activeTab]);
 
   const Skeleton = ({ rows = 3 }: { rows?: number }) => (
     <div className="space-y-3">
@@ -304,6 +335,76 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ═══ PAYMENTS TAB ═══ */}
+        {activeTab === 'payments' && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <h3 className="ios-title flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-[var(--ios-blue)]" />
+                Transacciones
+              </h3>
+              <button onClick={loadPayments} className="p-2 rounded-full hover:bg-black/5 transition active:scale-95">
+                <RefreshCw className={`w-4 h-4 text-[var(--ios-blue)] ${paymentsLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {paymentsLoading ? (
+              <Skeleton rows={5} />
+            ) : payments.length === 0 ? (
+              <div className="ios-empty">
+                <CreditCard className="w-12 h-12" />
+                <p className="ios-subtitle mt-2">Sin transacciones aún</p>
+              </div>
+            ) : (
+              <GlassCard variant="ultra" padding="none">
+                {payments.map((payment) => (
+                  <div key={payment.id} className="ios-list-item flex-wrap gap-y-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <PaymentStatusIcon status={payment.status} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[14px] font-semibold">#{payment.request_id}</p>
+                        <PaymentStatusBadge status={payment.status} />
+                        <span className="text-[12px] text-[var(--ios-text-tertiary)]">
+                          {payment.package_size === 'SMALL' ? 'Pequeño' : payment.package_size === 'MEDIUM' ? 'Mediano' : 'Grande'}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-[var(--ios-text-secondary)] truncate mt-0.5">
+                        {payment.pickup_location}
+                      </p>
+                      <p className="text-[11px] text-[var(--ios-text-tertiary)] mt-0.5">
+                        {new Date(payment.created_at).toLocaleString('es-ES', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-[16px] font-bold text-[var(--ios-text-primary)]">
+                        {(payment.amount_cents / 100).toFixed(2)} €
+                      </span>
+                      {(payment.status === 'AUTHORIZED' || payment.status === 'CAPTURED') && (
+                        <button
+                          onClick={() => handleRefund(payment.request_id)}
+                          disabled={refundingId === payment.request_id}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-[10px] bg-[var(--ios-red)]/10 text-[var(--ios-red)] text-[12px] font-medium hover:bg-[var(--ios-red)]/15 transition active:scale-95 disabled:opacity-50"
+                        >
+                          {refundingId === payment.request_id ? (
+                            <span className="ios-spinner w-3 h-3 border-[var(--ios-red)]/30 border-t-[var(--ios-red)]" />
+                          ) : (
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          )}
+                          Reembolso
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </GlassCard>
+            )}
+          </div>
+        )}
+
         {/* ═══ AUDIT TAB ═══ */}
         {activeTab === 'audit' && (
           <div className="space-y-4 animate-fade-in">
@@ -365,6 +466,41 @@ export default function AdminDashboard() {
         )}
       </div>
     </div>
+  );
+}
+
+/* ── Payment Status Icon ── */
+function PaymentStatusIcon({ status }: { status: PaymentRecord['status'] }) {
+  const cfg: Record<PaymentRecord['status'], { icon: React.ReactNode; color: string }> = {
+    PENDING:    { icon: <MinusCircle className="w-5 h-5" />, color: 'text-[var(--ios-text-tertiary)]' },
+    AUTHORIZED: { icon: <AlertCircle className="w-5 h-5" />, color: 'text-[var(--ios-orange)]' },
+    CAPTURED:   { icon: <CheckCircle2 className="w-5 h-5" />, color: 'text-[var(--ios-green)]' },
+    REFUNDED:   { icon: <RotateCcw className="w-5 h-5" />, color: 'text-[var(--ios-purple)]' },
+    FAILED:     { icon: <XCircle className="w-5 h-5" />, color: 'text-[var(--ios-red)]' },
+    CANCELLED:  { icon: <XCircle className="w-5 h-5" />, color: 'text-[var(--ios-text-tertiary)]' },
+  };
+  const { icon, color } = cfg[status] ?? cfg.PENDING;
+  return <span className={color}>{icon}</span>;
+}
+
+/* ── Payment Status Badge ── */
+function PaymentStatusBadge({ status }: { status: PaymentRecord['status'] }) {
+  const badgeCls: Record<PaymentRecord['status'], string> = {
+    PENDING:    'ios-badge-gray',
+    AUTHORIZED: 'ios-badge-orange',
+    CAPTURED:   'ios-badge-green',
+    REFUNDED:   'ios-badge-purple',
+    FAILED:     'ios-badge-red',
+    CANCELLED:  'ios-badge-gray',
+  };
+  const labels: Record<PaymentRecord['status'], string> = {
+    PENDING: 'Pendiente', AUTHORIZED: 'Autorizado', CAPTURED: 'Cobrado',
+    REFUNDED: 'Reembolsado', FAILED: 'Fallido', CANCELLED: 'Cancelado',
+  };
+  return (
+    <span className={`ios-badge text-[10px] ${badgeCls[status] ?? 'ios-badge-gray'}`}>
+      {labels[status] ?? status}
+    </span>
   );
 }
 

@@ -35,7 +35,7 @@ export const setupTestDb = async () => {
 
     // Crear schema desde cero  
     await pool.query('DROP SCHEMA IF EXISTS public CASCADE');
-    await pool.query('CREATE SCHEMA public');
+    await pool.query('CREATE SCHEMA IF NOT EXISTS public');
     await pool.query('CREATE EXTENSION IF NOT EXISTS postgis');
 
     // Ejecutar schema completo (todas las tablas)

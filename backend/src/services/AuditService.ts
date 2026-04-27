@@ -14,7 +14,11 @@ export type AuditEventType =
     | 'PICKED_UP'
     | 'CANCELLED'
     | 'RATE_LIMIT_BLOCK'
-    | 'HANDSHAKE_RENEWED';
+    | 'HANDSHAKE_RENEWED'
+    | 'PAYMENT_CREATED'
+    | 'PAYMENT_CAPTURED'
+    | 'PAYMENT_REFUNDED'
+    | 'PAYMENT_FAILED';
 
 export interface AuditEventParams {
     requestId: number;

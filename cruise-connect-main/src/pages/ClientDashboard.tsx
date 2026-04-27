@@ -14,6 +14,7 @@ import GlassSegmented from '@/components/ios/GlassSegmented';
 import IOSNotificationBell from '@/components/ios/IOSNotificationBell';
 import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
 import ClientTrackingMap from '@/components/ClientTrackingMap';
+import StripeCheckout from '@/components/StripeCheckout';
 import { toast } from 'sonner';
 import {
   Package, MapPin, ShieldCheck, Lock, PackageCheck,
@@ -65,6 +66,10 @@ export default function ClientDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [showOpenConfirm, setShowOpenConfirm] = useState(false);
+
+  // Payment flow: null = not started, 'pending' = showing checkout
+  const [paymentStep, setPaymentStep] = useState<'idle' | 'checkout'>('idle');
+  const [pendingRequestId, setPendingRequestId] = useState<number | null>(null);
 
   // Auto-location logic
   const { location: gpsLocation } = useClientGeoLocation();
@@ -153,7 +158,8 @@ export default function ClientDashboard() {
     setShowSuggestions(false);
   };
 
-  const onCreateRequest = async () => {
+  // Step 1: create the request in REQUESTED state → then show checkout
+  const onInitiateRequest = async () => {
     if (!selectedLocation) { toast.error('Selecciona una ubicación'); return; }
     setIsLoading(true);
     try {
@@ -161,15 +167,32 @@ export default function ClientDashboard() {
         selectedLocation.displayName,
         selectedLocation.lat,
         selectedLocation.lon,
-        packageSize
+        packageSize,
       );
       setCurrentRequest(req);
+      setPendingRequestId(req.id);
+      setPaymentStep('checkout');
       setSearchQuery('');
       setSelectedLocation(null);
-      toast.success('Solicitud creada');
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, 'Error al crear solicitud'));
     } finally { setIsLoading(false); }
+  };
+
+  // Step 2: payment authorized → cascade search already running
+  const onPaymentSuccess = () => {
+    setPaymentStep('idle');
+    setPendingRequestId(null);
+    toast.success('Pago autorizado — buscando conductor...');
+    refreshData();
+  };
+
+  // Step 2b: user cancelled checkout → we keep the request but surface error
+  const onPaymentCancel = () => {
+    setPaymentStep('idle');
+    setPendingRequestId(null);
+    toast('Pago cancelado. Puedes intentarlo de nuevo.');
+    refreshData();
   };
 
   const onConfirmDriver = async () => {
@@ -347,17 +370,27 @@ export default function ClientDashboard() {
                 </div>
 
                 <button
-                  onClick={onCreateRequest}
+                  onClick={onInitiateRequest}
                   disabled={!selectedLocation || isLoading}
                   className="ios-btn-primary ios-btn-lg"
                 >
-                  {isLoading ? <span className="ios-spinner border-white/30 border-t-white" /> : 'Confirmar solicitud'}
+                  {isLoading ? <span className="ios-spinner border-white/30 border-t-white" /> : 'Continuar al pago →'}
                 </button>
               </GlassCard>
             )}
 
+            {/* ── STRIPE CHECKOUT ── */}
+            {paymentStep === 'checkout' && pendingRequestId && (
+              <StripeCheckout
+                requestId={pendingRequestId}
+                packageSize={packageSize}
+                onSuccess={onPaymentSuccess}
+                onCancel={onPaymentCancel}
+              />
+            )}
+
             {/* ── ACTIVE REQUEST ── */}
-            {currentRequest && status !== 'PICKED_UP' && (
+            {currentRequest && status !== 'PICKED_UP' && paymentStep === 'idle' && (
               <>
                 {/* Status Card */}
                 <GlassCard variant="ultra" delay={1}>
