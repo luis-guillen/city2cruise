@@ -97,11 +97,58 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ─── PRICING RULES ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pricing_rules (
+  id SERIAL PRIMARY KEY,
+  package_size TEXT NOT NULL CHECK(package_size IN ('SMALL','MEDIUM','LARGE')),
+  base_price_cents INTEGER NOT NULL CHECK(base_price_cents > 0),
+  currency TEXT NOT NULL DEFAULT 'eur',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── PAYMENTS ────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS payments (
+  id SERIAL PRIMARY KEY,
+  request_id INTEGER NOT NULL REFERENCES pickup_requests(id),
+  client_id INTEGER NOT NULL REFERENCES users(id),
+  amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+  currency TEXT NOT NULL DEFAULT 'eur',
+  status TEXT NOT NULL DEFAULT 'PENDING'
+    CHECK(status IN ('PENDING','AUTHORIZED','CAPTURED','REFUNDED','FAILED','CANCELLED')),
+  stripe_payment_intent_id TEXT UNIQUE,
+  stripe_client_secret TEXT,
+  captured_at TIMESTAMPTZ NULL,
+  refunded_at TIMESTAMPTZ NULL,
+  refund_reason TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── PAYMENT REFUNDS ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS payment_refunds (
+  id SERIAL PRIMARY KEY,
+  payment_id INTEGER NOT NULL REFERENCES payments(id),
+  stripe_refund_id TEXT UNIQUE NOT NULL,
+  amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+  reason TEXT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING'
+    CHECK(status IN ('PENDING','SUCCEEDED','FAILED')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── STRIPE WEBHOOK EVENTS ───────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ─── AUDIT EVENTS ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_events (
   id TEXT PRIMARY KEY,
   request_id INTEGER NOT NULL,
-  event_type TEXT NOT NULL CHECK(event_type IN ('REQUESTED','ASSIGNED','CONFIRMATION_PENDING','HANDSHAKE_VALIDATED','IN_PROGRESS','DEPOSITED','PICKED_UP','CANCELLED','RATE_LIMIT_BLOCK','HANDSHAKE_RENEWED')),
+  event_type TEXT NOT NULL CHECK(event_type IN ('REQUESTED','ASSIGNED','CONFIRMATION_PENDING','HANDSHAKE_VALIDATED','IN_PROGRESS','DEPOSITED','PICKED_UP','CANCELLED','RATE_LIMIT_BLOCK','HANDSHAKE_RENEWED','PAYMENT_CREATED','PAYMENT_CAPTURED','PAYMENT_REFUNDED','PAYMENT_FAILED')),
   actor_id INTEGER NOT NULL,
   metadata JSONB NULL,
   signature TEXT NOT NULL,
@@ -188,6 +235,12 @@ CREATE INDEX IF NOT EXISTS idx_cruise_manifest_scheduled_arrival ON cruise_manif
 CREATE INDEX IF NOT EXISTS idx_users_location ON users USING GIST(location);
 CREATE INDEX IF NOT EXISTS idx_pickup_requests_location ON pickup_requests USING GIST(pickup_location_geo);
 CREATE INDEX IF NOT EXISTS idx_merchants_location ON merchants USING GIST(location);
+
+CREATE INDEX IF NOT EXISTS idx_payments_request_id ON payments(request_id);
+CREATE INDEX IF NOT EXISTS idx_payments_client_id ON payments(client_id);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+CREATE INDEX IF NOT EXISTS idx_payments_stripe_pi ON payments(stripe_payment_intent_id);
+CREATE INDEX IF NOT EXISTS idx_payment_refunds_payment_id ON payment_refunds(payment_id);
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_family_id ON refresh_tokens(family_id);

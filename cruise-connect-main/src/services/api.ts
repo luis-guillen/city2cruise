@@ -299,3 +299,55 @@ export async function getAuditTrailByRequest(requestId: number): Promise<AuditEv
   const res = await api.get(`/admin/audit-trail/${requestId}`);
   return res.data;
 }
+
+// ── PAYMENTS ─────────────────────────────────────────────────────────────────
+
+export interface PaymentIntent {
+  clientSecret: string;
+  paymentId: number;
+  amountCents: number;
+}
+
+export interface PaymentRecord {
+  id: number;
+  request_id: number;
+  amount_cents: number;
+  currency: string;
+  status: 'PENDING' | 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' | 'FAILED' | 'CANCELLED';
+  captured_at: string | null;
+  refunded_at: string | null;
+  refund_reason: string | null;
+  created_at: string;
+  pickup_location: string;
+  package_size: string;
+}
+
+/** CLIENT: Create a PaymentIntent for a request (auth-only) */
+export async function createPaymentIntent(requestId: number, packageSize: string): Promise<PaymentIntent> {
+  const res = await api.post('/payments/create-intent', { requestId, packageSize });
+  return res.data;
+}
+
+/** CLIENT: Confirm that Stripe Elements has authorized the payment */
+export async function confirmPayment(requestId: number, paymentIntentId: string): Promise<{ status: string }> {
+  const res = await api.post('/payments/confirm', { requestId, paymentIntentId });
+  return res.data;
+}
+
+/** CLIENT: Get payment history */
+export async function getPaymentHistory(): Promise<PaymentRecord[]> {
+  const res = await api.get('/payments/history');
+  return res.data;
+}
+
+/** ADMIN: Get all payments (uses admin route with pagination) */
+export async function getAdminPayments(page = 1, limit = 50): Promise<PaymentRecord[]> {
+  const res = await api.get(`/admin/payments?page=${page}&limit=${limit}`);
+  return res.data;
+}
+
+/** ADMIN: Refund a payment for a request */
+export async function adminRefundPayment(requestId: number): Promise<{ ok: boolean }> {
+  const res = await api.post('/payments/admin/refund', { requestId });
+  return res.data;
+}

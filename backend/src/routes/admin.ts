@@ -245,4 +245,35 @@ adminRouter.get('/audit-trail', authMiddleware, requireRole('ADMIN'), async (req
     }
 });
 
+// ── GET /admin/payments — lista de transacciones con datos del pedido ────────
+adminRouter.get('/payments', authMiddleware, requireRole('ADMIN'), async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page as string || '1', 10));
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string || '50', 10)));
+        const offset = (page - 1) * limit;
+
+        const { rows } = await db.query(
+            `SELECT
+                p.id, p.request_id, p.client_id, p.amount_cents, p.currency, p.status,
+                p.stripe_payment_intent_id, p.captured_at, p.refunded_at, p.refund_reason,
+                p.created_at, p.updated_at,
+                pr.pickup_location, pr.package_size,
+                u.name AS client_name, u.email AS client_email
+             FROM payments p
+             JOIN pickup_requests pr ON p.request_id = pr.id
+             JOIN users u ON p.client_id = u.id
+             ORDER BY p.created_at DESC
+             LIMIT $1 OFFSET $2`,
+            [limit, offset],
+        );
+
+        const { rows: [{ n: total }] } = await db.query('SELECT COUNT(*)::int as n FROM payments');
+
+        res.json({ page, limit, total, payments: rows });
+    } catch (error) {
+        console.error('[ADMIN] payments error:', error);
+        sendError(res, 500, 'INTERNAL_ERROR', 'Error obteniendo pagos');
+    }
+});
+
 export default adminRouter;

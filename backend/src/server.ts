@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { config } from './config/env';
 import apiRouter from './routes';
 import debugRouter from './routes/debug';
+import { stripeWebhookHandler } from './routes/payments';
 import { globalErrorHandler } from './utils/errors';
 import { globalLimiter } from './middleware/rateLimiter';
 
@@ -64,7 +65,14 @@ export const buildServer = (): Express => {
     // 4. Rate Limiter Global
     app.use(globalLimiter);
 
-    // 5. Body Parser con límite de tamaño (previene payload abuse)
+    // 5a. Webhook de Stripe — necesita body RAW antes de que express.json lo parsee
+    app.post(
+        '/webhooks/stripe',
+        express.raw({ type: 'application/json' }),
+        stripeWebhookHandler,
+    );
+
+    // 5b. Body Parser con límite de tamaño (previene payload abuse)
     app.use(express.json({ limit: '16kb' }));
 
     // 6. Rutas
