@@ -76,7 +76,7 @@ describe('LoginPage', () => {
     const { loginUser } = await import('@/services/api');
     vi.mocked(loginUser).mockResolvedValue({
       token: 'test-token',
-      user: { id: 1, name: 'Test', role: 'CLIENT', latitude: null, longitude: null } as any,
+      user: { id: 1, name: 'Test', role: 'CLIENT', latitude: null, longitude: null },
     });
 
     renderLoginPage();
