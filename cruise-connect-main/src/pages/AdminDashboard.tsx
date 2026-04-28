@@ -148,6 +148,13 @@ export default function AdminDashboard() {
         title="Administración"
         trailing={
           <div className="flex items-center gap-1">
+            <a
+              href="/admin/control-tower"
+              className="p-2 rounded-full hover:bg-black/5 active:scale-95 transition text-[var(--ios-blue)] text-xs font-semibold"
+              title="Torre de Control (Hito 5.4.4)"
+            >
+              Torre
+            </a>
             <button onClick={loadAll} className="p-2 rounded-full hover:bg-black/5 active:scale-95 transition">
               <RefreshCw className={`w-5 h-5 text-[var(--ios-blue)] ${loading ? 'animate-spin' : ''}`} />
             </button>
