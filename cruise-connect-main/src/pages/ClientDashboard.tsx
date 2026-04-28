@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
   handleCreateRequest, handleOpenLocker, handleConfirmDriver,
@@ -13,7 +13,7 @@ import GlassInput from '@/components/ios/GlassInput';
 import GlassSegmented from '@/components/ios/GlassSegmented';
 import IOSNotificationBell from '@/components/ios/IOSNotificationBell';
 import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
-const ClientTrackingMap = lazy(() => import('@/components/ClientTrackingMap'));
+import ClientTrackingMap from '@/components/ClientTrackingMap';
 import StripeCheckout from '@/components/StripeCheckout';
 import { NotificationSettings } from '@/components/NotificationSettings';
 import { toast } from 'sonner';
@@ -336,22 +336,16 @@ export default function ClientDashboard() {
                 
                 {showMapPicker && (
                   <div className="w-full h-56 rounded-[14px] overflow-hidden border border-black/5 mb-4 animate-scale-in">
-                    <Suspense fallback={
-                      <div className="h-full bg-[#E8EEF4] flex items-center justify-center">
-                        <div className="w-7 h-7 rounded-full border-4 border-[#007AFF]/20 border-t-[#007AFF] animate-spin" />
-                      </div>
-                    }>
-                      <ClientTrackingMap
-                        selectable
-                        onLocationSelect={(lat, lon) => {
-                          setSelectedLocation({ displayName: `Punto en el mapa (${lat.toFixed(4)}, ${lon.toFixed(4)})`, lat, lon });
-                          setSearchQuery(`Punto en el mapa (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
-                          setShowSuggestions(false);
-                        }}
-                        initialLat={selectedLocation?.lat}
-                        initialLon={selectedLocation?.lon}
-                      />
-                    </Suspense>
+                    <ClientTrackingMap
+                      selectable
+                      onLocationSelect={(lat, lon) => {
+                        setSelectedLocation({ displayName: `Punto en el mapa (${lat.toFixed(4)}, ${lon.toFixed(4)})`, lat, lon });
+                        setSearchQuery(`Punto en el mapa (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
+                        setShowSuggestions(false);
+                      }}
+                      initialLat={selectedLocation?.lat}
+                      initialLon={selectedLocation?.lon}
+                    />
                   </div>
                 )}
 
@@ -471,13 +465,7 @@ export default function ClientDashboard() {
 
                 {/* ── DRIVER TRACKING MAP ── */}
                 {(status === 'CONFIRMATION_PENDING' || status === 'IN_PROGRESS') && (
-                  <Suspense fallback={
-                    <div className="h-[280px] bg-[#E8EEF4] rounded-[20px] flex items-center justify-center">
-                      <div className="w-8 h-8 rounded-full border-4 border-[#007AFF]/20 border-t-[#007AFF] animate-spin" />
-                    </div>
-                  }>
-                    <ClientTrackingMap request={currentRequest} driverName={currentRequest.driver?.name} />
-                  </Suspense>
+                  <ClientTrackingMap request={currentRequest} driverName={currentRequest.driver?.name} />
                 )}
 
                 {/* ── HANDSHAKE CONFIRMATION ── */}
