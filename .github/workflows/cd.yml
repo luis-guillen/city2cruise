@@ -1,0 +1,186 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options: [staging, production]
+
+# Permisos minimos: solo escritura en packages (GHCR) e id-token para OIDC
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false   # NO cancelar deploys a medio terminar
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BACKEND: ghcr.io/${{ github.repository_owner }}/city2cruise-backend
+  IMAGE_FRONTEND: ghcr.io/${{ github.repository_owner }}/city2cruise-frontend
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # 1. Build + push de imagenes a GHCR con tags semver + sha
+  # ──────────────────────────────────────────────────────────────────────────
+  build-push:
+    name: Build & Push (GHCR)
+    runs-on: ubuntu-latest
+    outputs:
+      backend_tag: ${{ steps.meta_b.outputs.version }}
+      frontend_tag: ${{ steps.meta_f.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Backend metadata
+        id: meta_b
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_BACKEND }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Frontend metadata
+        id: meta_f
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_FRONTEND }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Build & push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_b.outputs.tags }}
+          labels: ${{ steps.meta_b.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+      - name: Build & push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./cruise-connect-main
+          file: ./cruise-connect-main/Dockerfile
+          push: true
+          tags: ${{ steps.meta_f.outputs.tags }}
+          labels: ${{ steps.meta_f.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 2. Deploy a STAGING (automatico en push a main, requiere env protection)
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy → Staging (Fly.io)
+    needs: build-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'staging')
+    environment:
+      name: staging
+      url: https://city2cruise-staging.fly.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy backend to Fly.io staging
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
+        run: |
+          flyctl deploy --remote-only \
+            --app city2cruise-backend-staging \
+            --image ${{ env.IMAGE_BACKEND }}:sha-${{ github.sha }} \
+            --strategy rolling \
+            --wait-timeout 300
+      - name: Smoke test staging
+        run: |
+          for i in {1..30}; do
+            curl -fsS https://city2cruise-staging.fly.dev/api/health && break
+            sleep 5
+          done
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 3. E2E sobre staging (no bloquea promocion pero deja registro)
+  # ──────────────────────────────────────────────────────────────────────────
+  e2e-staging:
+    name: E2E tests on Staging
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install k6
+        uses: grafana/setup-k6-action@v1
+      - name: Run smoke k6 against staging
+        env:
+          BASE_URL: https://city2cruise-staging.fly.dev
+        run: k6 run --vus 5 --duration 30s k6/phase4-100c.js
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 4. Deploy a PROD (manual, requiere environment "production" con
+  #    required reviewers en GitHub Settings)
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy → Production (Fly.io) [manual gate]
+    needs: [build-push, deploy-staging]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'production')
+    environment:
+      name: production
+      url: https://city2cruise.fly.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Fly CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy backend to Fly.io production
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PROD }}
+        run: |
+          flyctl deploy --remote-only \
+            --app city2cruise-backend \
+            --image ${{ env.IMAGE_BACKEND }}:${{ github.ref_name }} \
+            --strategy bluegreen \
+            --wait-timeout 600
+      - name: Smoke test production
+        run: |
+          for i in {1..30}; do
+            curl -fsS https://city2cruise.fly.dev/api/health && break
+            sleep 5
+          done
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "City2Cruise: Production deploy ${{ job.status }} (tag ${{ github.ref_name }})"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        continue-on-error: true
