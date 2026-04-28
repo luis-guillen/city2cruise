@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { config } from './config/env';
 import apiRouter from './routes';
@@ -62,7 +63,23 @@ export const buildServer = (): Express => {
         credentials: true
     }));
 
-    // 4. Rate Limiter Global
+    // 4a. Hito 4.3.4 — Compresion gzip/brotli y ETag.
+    // - Compresion solo si la respuesta supera 1KB y no es WebSocket.
+    // - El header X-No-Compression desactiva la compresion (util para
+    //   debugging via curl).
+    app.use(
+        compression({
+            threshold: 1024,
+            filter: (req, res) => {
+                if (req.headers['x-no-compression']) return false;
+                return compression.filter(req, res);
+            },
+        }),
+    );
+    // ETag fuerte por contenido (Express ya lo incluye, lo hacemos explicito).
+    app.set('etag', 'strong');
+
+    // 4b. Rate Limiter Global
     app.use(globalLimiter);
 
     // 5a. Webhook de Stripe — necesita body RAW antes de que express.json lo parsee
