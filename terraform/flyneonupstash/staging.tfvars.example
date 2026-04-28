@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Hito 5.2.2 — variables para entorno STAGING (rellenar y renombrar a
+# staging.tfvars; jamás commitear el .tfvars real).
+# ─────────────────────────────────────────────────────────────────────────────
+
+environment   = "staging"
+project_name  = "city2cruise"
+
+# Fly.io
+fly_org_slug         = "your-fly-org"
+fly_region_primary   = "mad"
+fly_region_extra     = []           # staging no necesita réplica
+fly_backend_vm_size  = "shared-cpu-1x"
+fly_backend_vm_count = 1
+
+# Neon
+neon_region                    = "aws-eu-west-1"
+neon_pg_version                = 15
+neon_history_retention_seconds = 86400 # 1 día en staging para ahorrar
+
+# Upstash
+upstash_region   = "eu-west-1"
+upstash_eviction = true
+upstash_tls      = true
+
+# Cloudflare
+cloudflare_account_id              = "REEMPLAZAR-CON-ACCOUNT-ID"
+cloudflare_pages_repo_owner        = "pablete64"
+cloudflare_pages_repo_name         = "APP_TRASNPORTE_LOCKERS_BARCELONA"
+cloudflare_pages_production_branch = "develop"
+
+# Sensitive: usar TF_VAR_* env vars o vault
+# fly_api_token       = ""
+# neon_api_key        = ""
+# upstash_email       = ""
+# upstash_api_key     = ""
+# cloudflare_api_token = ""
+# jwt_secret          = ""
+# audit_hmac_secret   = ""
