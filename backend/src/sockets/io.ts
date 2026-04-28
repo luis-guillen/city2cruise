@@ -1,4 +1,6 @@
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { getRedisPubSub } from "../cache/redis";
 import { Server as HttpServer } from "http";
 import { config } from "../config/env";
 import { verifyToken } from "../auth/jwt";
@@ -102,6 +104,18 @@ export const initSockets = (httpServer: HttpServer) => {
             credentials: true,
         }
     });
+
+    // Hito 4.3.2 — Cuando hay Redis, registra el adapter para soportar
+    // multi-instancia (eventos cross-worker via pub/sub).
+    const ps = getRedisPubSub();
+    if (ps) {
+        try {
+            io.adapter(createAdapter(ps.pub, ps.sub));
+            logger.info('socket.io redis adapter active');
+        } catch (e) {
+            logger.warn({ err: (e as Error).message }, 'failed to attach socket.io redis adapter');
+        }
+    }
 
     // JWT Authentication middleware
     io.use((socket, next) => {
