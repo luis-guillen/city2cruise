@@ -16,7 +16,8 @@
     "prestart:all": "lsof -ti :9000,9100,9101,9102 | xargs kill -9 2>/dev/null; echo 'Puertos liberados'",
     "start:all": "concurrently --kill-others \"npm run dev\" \"npm run dev:backend\"",
     "test:a11y": "vitest run src/__tests__/a11y",
-    "test:a11y:strict": "A11Y_STRICT=1 vitest run src/__tests__/a11y"
+    "test:a11y:strict": "A11Y_STRICT=1 vitest run src/__tests__/a11y",
+    "build:analyze": "ANALYZE=1 vite build && echo \"Open dist/bundle-stats.html\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -104,6 +105,7 @@
     "jsdom": "^29.0.1",
     "lovable-tagger": "^1.1.13",
     "postcss": "^8.5.6",
+    "rollup-plugin-visualizer": "^7.0.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
