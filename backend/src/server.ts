@@ -10,6 +10,7 @@ import { stripeWebhookHandler } from './routes/payments';
 import { globalErrorHandler } from './utils/errors';
 import * as Sentry from '@sentry/node';
 import { httpMetricsMiddleware, metricsHandler } from './observability/metrics';
+import { requestIdMiddleware } from './middleware/requestId';
 import { globalLimiter } from './middleware/rateLimiter';
 
 export const buildServer = (): Express => {
@@ -80,6 +81,9 @@ export const buildServer = (): Express => {
     );
     // ETag fuerte por contenido (Express ya lo incluye, lo hacemos explicito).
     app.set('etag', 'strong');
+
+    // 4a. Request ID + access log (Hito 5.3.5) — primero, para que TODO log lleve correlation
+    app.use(requestIdMiddleware);
 
     // 4b. Rate Limiter Global
     app.use(globalLimiter);
