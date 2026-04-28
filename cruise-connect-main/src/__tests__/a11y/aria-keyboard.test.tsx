@@ -14,6 +14,7 @@ import Layout from '@/components/Layout';
 import Navbar from '@/components/Navbar';
 import GlassSegmented from '@/components/ios/GlassSegmented';
 import { AppProvider } from '@/context/AppContext';
+import { AccessibilityProvider } from '@/context/AccessibilityContext';
 
 vi.mock('@/services/api', () => ({
   getNotifications: vi.fn().mockResolvedValue([]),
@@ -27,9 +28,9 @@ const wrap = (children: React.ReactNode) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
     <QueryClientProvider client={qc}>
-      <AppProvider>
+      <AccessibilityProvider><AppProvider>
         <MemoryRouter>{children}</MemoryRouter>
-      </AppProvider>
+      </AppProvider></AccessibilityProvider>
     </QueryClientProvider>
   );
 };

@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import StatusBadge from '@/components/StatusBadge';
 import { AppProvider } from '@/context/AppContext';
+import { AccessibilityProvider } from '@/context/AccessibilityContext';
 
 const SOFT_ASSERT = process.env.A11Y_STRICT !== '1';
 const REPORT_PATH = path.resolve(
@@ -66,9 +67,9 @@ const wrap = (children: React.ReactNode) => {
   });
   return (
     <QueryClientProvider client={qc}>
-      <AppProvider>
+      <AccessibilityProvider><AppProvider>
         <MemoryRouter>{children}</MemoryRouter>
-      </AppProvider>
+      </AppProvider></AccessibilityProvider>
     </QueryClientProvider>
   );
 };
