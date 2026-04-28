@@ -1,4 +1,5 @@
 import { Package, LogOut } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
 import NotificationBell from "./NotificationBell";
@@ -15,6 +16,7 @@ import AccessibilityMenu from "./AccessibilityMenu";
  *  - Focus visible respetando prefers-reduced-motion (transition-colors solo).
  */
 export default function Navbar() {
+  const { t } = useTranslation();
   const { userName, role, logout } = useApp();
   const navigate = useNavigate();
 
@@ -42,14 +44,14 @@ export default function Navbar() {
 
         {role && (
           <nav
-            aria-label="Acciones de usuario"
+            aria-label={t("navbar.userActions")}
             className="flex items-center gap-4"
           >
             <NotificationBell />
             <AccessibilityMenu />
             <span
               className="text-sm text-muted-foreground hidden sm:inline"
-              aria-label={`Sesión iniciada como ${userName}, rol ${role}`}
+              aria-label={t("navbar.sessionAs", { name: userName, role: role })}
             >
               {userName} ·{" "}
               <span className="font-medium text-foreground">{role}</span>
@@ -57,11 +59,11 @@ export default function Navbar() {
             <button
               type="button"
               onClick={handleLogout}
-              aria-label="Cerrar sesión"
+              aria-label={t("navbar.logoutTitle")}
               className="flex items-center gap-1 rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background min-h-[40px]"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" focusable="false" />
-              Salir
+              {t("auth.logout")}
             </button>
           </nav>
         )}

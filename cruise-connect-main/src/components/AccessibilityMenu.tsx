@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Accessibility } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   useAccessibility,
   type AccessibilityProfile,
@@ -24,7 +25,7 @@ export default function AccessibilityMenu() {
     setReducedMotion,
     setLanguage,
   } = useAccessibility();
-
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -66,8 +67,8 @@ export default function AccessibilityMenu() {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="a11y-menu"
-        aria-label="Opciones de accesibilidad"
-        title="Opciones de accesibilidad"
+        aria-label={t("a11y.menuTitle")}
+        title={t("a11y.menuTitle")}
         className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <Accessibility className="h-5 w-5" aria-hidden="true" focusable="false" />
@@ -82,18 +83,18 @@ export default function AccessibilityMenu() {
           className="absolute right-0 mt-2 w-72 rounded-xl border border-border bg-card p-4 shadow-lg z-50 motion-reduce:animate-none"
         >
           <h3 id="a11y-menu-title" className="font-semibold text-sm mb-3">
-            Accesibilidad
+            {t("a11y.menu")}
           </h3>
 
           <fieldset className="space-y-2 mb-4">
             <legend className="text-xs font-medium text-muted-foreground mb-1">
-              Perfil
+              {t("a11y.profile")}
             </legend>
             {(
               [
-                { id: 'standard', label: 'Estándar' },
-                { id: 'age_advanced', label: 'Avanzado (texto grande)' },
-                { id: 'pmr', label: 'Movilidad reducida' },
+                { id: 'standard', label: t('a11y.profileStandard') },
+                { id: 'age_advanced', label: t('a11y.profileAge') },
+                { id: 'pmr', label: t('a11y.profilePmr') },
               ] as Array<{ id: AccessibilityProfile; label: string }>
             ).map((opt) => (
               <label
@@ -115,12 +116,12 @@ export default function AccessibilityMenu() {
 
           <fieldset className="space-y-2 mb-4">
             <legend className="text-xs font-medium text-muted-foreground mb-1">
-              Contraste
+              {t("a11y.contrast")}
             </legend>
             {(
               [
-                { id: 'auto', label: 'Automático' },
-                { id: 'high', label: 'Alto contraste' },
+                { id: 'auto', label: t('a11y.contrastAuto') },
+                { id: 'high', label: t('a11y.contrastHigh') },
               ] as Array<{ id: ContrastMode; label: string }>
             ).map((opt) => (
               <label
@@ -147,15 +148,15 @@ export default function AccessibilityMenu() {
               onChange={(e) => setReducedMotion(e.target.checked)}
               className="h-4 w-4"
             />
-            <span className="text-sm">Reducir animaciones</span>
+            <span className="text-sm">{t("a11y.reducedMotion")}</span>
           </label>
 
           <fieldset>
             <legend className="text-xs font-medium text-muted-foreground mb-1">
-              Idioma
+              {t("a11y.language")}
             </legend>
             <label className="sr-only" htmlFor="a11y-language">
-              Idioma de la aplicación
+              {t("a11y.languageAria")}
             </label>
             <select
               id="a11y-language"
