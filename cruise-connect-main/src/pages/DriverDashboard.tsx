@@ -10,11 +10,12 @@ import GlassNavbar from '@/components/ios/GlassNavbar';
 import GlassCard from '@/components/ios/GlassCard';
 import DriverMap from '@/components/DriverMap';
 import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
+import { NotificationSettings } from '@/components/NotificationSettings';
 import { toast } from 'sonner';
 import { getApiErrorMessage } from '@/utils/errors';
 import {
   Navigation, MapPin, Package, Box, Archive, LogOut,
-  RefreshCw, CheckCircle2, Truck, AlertTriangle
+  RefreshCw, CheckCircle2, Truck, AlertTriangle, Settings
 } from 'lucide-react';
 
 function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -68,6 +69,7 @@ export default function DriverDashboard() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleLogout = () => { logout(); navigate('/'); };
 
@@ -307,6 +309,26 @@ export default function DriverDashboard() {
             </div>
           </div>
         )}
+        {/* ═══ SETTINGS ═══ */}
+        <GlassCard variant="default" className="mt-4 animate-slide-up">
+          <button
+            onClick={() => setShowSettings((v) => !v)}
+            className="flex items-center justify-between w-full"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-[var(--ios-text-primary)]">
+              <Settings className="w-4 h-4 text-[var(--ios-blue)]" />
+              Ajustes de notificaciones
+            </span>
+            <span className="text-xs text-[var(--ios-text-secondary)]">
+              {showSettings ? '▲' : '▼'}
+            </span>
+          </button>
+          {showSettings && (
+            <div className="mt-4 border-t border-black/5 pt-4">
+              <NotificationSettings />
+            </div>
+          )}
+        </GlassCard>
       </div>
     </div>
   );

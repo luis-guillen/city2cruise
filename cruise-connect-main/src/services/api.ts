@@ -351,3 +351,44 @@ export async function adminRefundPayment(requestId: number): Promise<{ ok: boole
   const res = await api.post('/payments/admin/refund', { requestId });
   return res.data;
 }
+
+// ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────────
+
+export interface NotificationPrefs {
+  push_enabled: boolean;
+  sms_enabled: boolean;
+  locale: 'es' | 'en' | 'ca';
+  phone: string | null;
+}
+
+/** Get VAPID public key from backend */
+export async function getVapidPublicKey(): Promise<string> {
+  const res = await api.get('/push/vapid-public-key');
+  return res.data.publicKey;
+}
+
+/** Register a push subscription on the backend */
+export async function registerPushSubscription(sub: PushSubscriptionJSON): Promise<void> {
+  await api.post('/push/subscribe', sub);
+}
+
+/** Remove a push subscription (on logout or permission revoked) */
+export async function unregisterPushSubscription(endpoint: string): Promise<void> {
+  await api.delete('/push/subscribe', { data: { endpoint } });
+}
+
+/** Get current user notification preferences */
+export async function getNotificationPrefs(): Promise<NotificationPrefs> {
+  const res = await api.get('/push/prefs');
+  return res.data;
+}
+
+/** Update notification preferences */
+export async function updateNotificationPrefs(prefs: Partial<NotificationPrefs>): Promise<void> {
+  await api.patch('/push/prefs', {
+    pushEnabled: prefs.push_enabled,
+    smsEnabled: prefs.sms_enabled,
+    locale: prefs.locale,
+    phone: prefs.phone,
+  });
+}

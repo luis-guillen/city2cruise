@@ -31,6 +31,7 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        importScripts: ['/sw-push.js'],
         runtimeCaching: [
           {
             urlPattern: /^https?:\/\/.*\/api\/.*/,

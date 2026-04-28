@@ -10,6 +10,8 @@ import notificationsRouter from './notifications';
 import merchantsRouter from './merchants';
 import cruisesRouter from './cruises';
 import paymentsRouter from './payments';
+import pushRouter from './push';
+import internalRouter from './internal';
 import { authLimiter, lockerOpenLimiter } from '../middleware/rateLimiter';
 
 const apiRouter = Router();
@@ -36,6 +38,10 @@ v1Router.use('/notifications', notificationsRouter);
 v1Router.use('/merchants', merchantsRouter);
 v1Router.use('/cruises', cruisesRouter);
 v1Router.use('/payments', paymentsRouter);
+v1Router.use('/push', pushRouter);
+
+// Internal endpoint for RL microservice — NOT under /v1, NOT publicly documented
+apiRouter.use('/internal', internalRouter);
 
 // Health Check Endpoint (fuera de versionado específico, pero indicando la versión)
 apiRouter.get('/health', (req, res) => {

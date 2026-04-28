@@ -6,6 +6,7 @@ import { startCascadeSearch, cancelCascade } from './GeoDispatchService';
 import { logger } from '../utils/logger';
 import { ServiceError } from '../utils/errors';
 import { encryptField, decryptField } from '../utils/crypto';
+import { notifyDepositReady, notifyRequestAssigned } from './NotificationService';
 import { config } from '../config/env';
 
 const MAX_HANDSHAKE_ATTEMPTS = 3;
@@ -180,6 +181,9 @@ export async function acceptRequest(
         WHERE r.id = $1
     `, [requestId]);
     const dto = buildPickupRequestDTO(row);
+
+    // Notify client: conductor en camino (fire-and-forget)
+    notifyRequestAssigned(dto.clientId).catch(() => {});
 
     return { dto, handshakeCode };
 }
@@ -418,6 +422,9 @@ export async function depositRequest(
 
     logger.info({ requestId, locker: resultData.lockerLabel }, 'Request deposited');
     await logAuditEvent({ requestId: Number(requestId), eventType: 'DEPOSITED', actorId: driverId });
+
+    // Notify client: locker ready with PIN (fire-and-forget)
+    notifyDepositReady(resultData.clientId, resultData.lockerLabel, resultData.lockerCode).catch(() => {});
 
     const { rows: [row] } = await db.query(`
         SELECT r.*, l.label as locker_label, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
