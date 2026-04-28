@@ -4,6 +4,7 @@ import { Navigation } from 'lucide-react';
 import L from 'leaflet';
 import { PickupRequest } from '@/services/api';
 import GlassCard from './ios/GlassCard';
+import MapTextAlternative from './MapTextAlternative';
 
 const LOCKER_DESTINATION = { lat: 28.1505, lon: -15.4145 };
 
@@ -151,7 +152,7 @@ export default function ClientTrackingMap({
   if (selectable) {
     return (
       <div className="h-full w-full">
-        <MapContainer
+        <MapContainer aria-label="Mapa de seguimiento del envío" role="application"
           center={[initialLat || 28.1413, initialLon || -15.4308]}
           zoom={14}
           style={{ height: '100%', width: '100%' }}
@@ -208,7 +209,7 @@ export default function ClientTrackingMap({
       </div>
 
       {/* Mapa */}
-      <MapContainer
+      <MapContainer aria-label="Mapa de seguimiento del envío" role="application"
         center={[driverPos.lat, driverPos.lon]}
         zoom={14}
         scrollWheelZoom={false}
@@ -240,6 +241,27 @@ export default function ClientTrackingMap({
         </Marker>
 
       </MapContainer>
+
+      <MapTextAlternative
+        title="Seguimiento del envío"
+        statusText={
+          request?.status === 'CONFIRMATION_PENDING'
+            ? `${driverName || 'El conductor'} viene a por tu paquete`
+            : `${driverName || 'El conductor'} lleva tu paquete al puerto`
+        }
+        distanceKm={distance}
+        locations={[
+          { label: driverName || 'Conductor', latitude: driverPos.lat, longitude: driverPos.lon },
+          {
+            label:
+              request?.status === 'CONFIRMATION_PENDING'
+                ? 'Tu ubicación'
+                : 'Taquillas del puerto',
+            latitude: destination.lat,
+            longitude: destination.lon,
+          },
+        ]}
+      />
     </div>
   );
 }

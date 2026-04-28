@@ -26,7 +26,8 @@ export function useClientGeoLocation() {
             setLocation({ lat: randomFallbackRef.current.lat, lon: randomFallbackRef.current.lon });
             setUsingFallback(true);
             setLoading(false);
-            if (isDemo) return; // En demo no intentamos GPS real para asegurar consistencia con drivers
+            // Bug-fix Hito 6.1.2: salir si tampoco hay geolocation API (no solo en demo)
+            if (isDemo || !navigator.geolocation) return;
         }
 
         navigator.geolocation.getCurrentPosition(

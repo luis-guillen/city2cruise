@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Hito 5.2.2 — variables para entorno PRODUCTION (rellenar y renombrar a
+# production.tfvars; jamás commitear el .tfvars real).
+# ─────────────────────────────────────────────────────────────────────────────
+
+environment   = "production"
+project_name  = "city2cruise"
+
+# Fly.io — HA con réplica en CDG
+fly_org_slug         = "your-fly-org"
+fly_region_primary   = "mad"
+fly_region_extra     = ["cdg"]
+fly_backend_vm_size  = "shared-cpu-1x" # subir a performance-1x si p95>500ms
+fly_backend_vm_count = 2
+
+# Neon — PITR 7 días, suficiente para RPO<1h
+neon_region                    = "aws-eu-west-1"
+neon_pg_version                = 15
+neon_history_retention_seconds = 604800
+
+# Upstash — multizone para HA
+upstash_region   = "eu-west-1"
+upstash_eviction = true
+upstash_tls      = true
+
+# Cloudflare
+cloudflare_account_id              = "REEMPLAZAR-CON-ACCOUNT-ID"
+cloudflare_pages_repo_owner        = "pablete64"
+cloudflare_pages_repo_name         = "APP_TRASNPORTE_LOCKERS_BARCELONA"
+cloudflare_pages_production_branch = "main"

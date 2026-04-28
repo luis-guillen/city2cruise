@@ -66,13 +66,13 @@ export default function LoginPage() {
     <div className="min-h-dvh flex flex-col items-center justify-center px-5 py-12 bg-gradient-to-b from-[#e8f4fd] via-[var(--ios-bg-primary)] to-[var(--ios-bg-primary)]">
 
       {/* Decorative blobs */}
-      <div className="fixed top-[-100px] right-[-80px] w-[300px] h-[300px] rounded-full bg-[var(--ios-blue)] opacity-[0.06] blur-[80px] pointer-events-none" />
-      <div className="fixed bottom-[-60px] left-[-60px] w-[250px] h-[250px] rounded-full bg-[#5AC8FA] opacity-[0.08] blur-[60px] pointer-events-none" />
+      <div aria-hidden="true" className="fixed top-[-100px] right-[-80px] w-[300px] h-[300px] rounded-full bg-[var(--ios-blue)] opacity-[0.06] blur-[80px] pointer-events-none" />
+      <div aria-hidden="true" className="fixed bottom-[-60px] left-[-60px] w-[250px] h-[250px] rounded-full bg-[#5AC8FA] opacity-[0.08] blur-[60px] pointer-events-none" />
 
       {/* Logo */}
       <div className="animate-slide-up text-center mb-8 relative z-10">
         <div className="w-[72px] h-[72px] rounded-[18px] bg-gradient-to-br from-[var(--ios-blue)] to-[#5AC8FA] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20">
-          <Ship className="w-9 h-9 text-white" />
+          <Ship className="w-9 h-9 text-white" aria-hidden="true" focusable="false" />
         </div>
         <h1 className="text-[28px] font-bold tracking-tight">City2Cruise</h1>
         <p className="ios-subtitle mt-1">Shop & Drop Port Hub</p>
@@ -92,12 +92,12 @@ export default function LoginPage() {
           />
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" aria-busy={isLoading} aria-label={mode === 'login' ? 'Formulario de inicio de sesión' : 'Formulario de registro'}>
           {mode === 'register' && (
             <div className="animate-slide-down">
               <GlassInput
                 label="Nombre completo"
-                icon={<User className="w-5 h-5" />}
+                icon={<User className="w-5 h-5" aria-hidden="true" focusable="false" />}
                 placeholder="Tu nombre"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -108,7 +108,7 @@ export default function LoginPage() {
 
           <GlassInput
             label="Email"
-            icon={<Mail className="w-5 h-5" />}
+            icon={<Mail className="w-5 h-5" aria-hidden="true" focusable="false" />}
             type="email"
             placeholder="tu@email.com"
             value={email}
@@ -118,7 +118,7 @@ export default function LoginPage() {
 
           <GlassInput
             label="Contraseña"
-            icon={<Lock className="w-5 h-5" />}
+            icon={<Lock className="w-5 h-5" aria-hidden="true" focusable="false" />}
             type="password"
             placeholder="Mínimo 6 caracteres"
             value={password}
@@ -129,7 +129,7 @@ export default function LoginPage() {
           {mode === 'register' && (
             <div className="animate-slide-down space-y-2">
               <label className="ios-caption font-medium pl-1">Tipo de cuenta</label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Tipo de cuenta">
                 {[
                   { id: 'CLIENT' as const, label: 'Cliente', Icon: ShoppingBag },
                   { id: 'DRIVER' as const, label: 'Conductor', Icon: Truck },
@@ -138,6 +138,9 @@ export default function LoginPage() {
                     key={id}
                     type="button"
                     onClick={() => setRole(id)}
+                    role="radio"
+                    aria-checked={role === id}
+                    tabIndex={role === id ? 0 : -1}
                     className={`
                       flex flex-col items-center gap-2 p-4 rounded-[16px] transition-all duration-200
                       ${role === id
@@ -147,7 +150,7 @@ export default function LoginPage() {
                     `}
                   >
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${role === id ? 'bg-[var(--ios-blue)]/10' : 'bg-black/[0.04]'}`}>
-                      <Icon className={`w-5 h-5 ${role === id ? 'text-[var(--ios-blue)]' : 'text-[var(--ios-text-tertiary)]'}`} />
+                      <Icon className={`w-5 h-5 ${role === id ? 'text-[var(--ios-blue)]' : 'text-[var(--ios-text-tertiary)]'}`} aria-hidden="true" focusable="false" />
                     </div>
                     <span className={`text-[14px] font-semibold ${role === id ? 'text-[var(--ios-blue)]' : 'text-[var(--ios-text-secondary)]'}`}>
                       {label}
@@ -164,7 +167,7 @@ export default function LoginPage() {
             ) : (
               <>
                 {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5" aria-hidden="true" focusable="false" />
               </>
             )}
           </button>

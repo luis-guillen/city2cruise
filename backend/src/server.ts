@@ -1,12 +1,17 @@
 import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { config } from './config/env';
 import apiRouter from './routes';
 import debugRouter from './routes/debug';
 import { stripeWebhookHandler } from './routes/payments';
 import { globalErrorHandler } from './utils/errors';
+import * as Sentry from '@sentry/node';
+import { httpMetricsMiddleware, metricsHandler } from './observability/metrics';
+import { healthRouter } from './routes/health';
+import { requestIdMiddleware } from './middleware/requestId';
 import { globalLimiter } from './middleware/rateLimiter';
 
 export const buildServer = (): Express => {
@@ -62,7 +67,29 @@ export const buildServer = (): Express => {
         credentials: true
     }));
 
-    // 4. Rate Limiter Global
+    // 4a. Hito 4.3.4 — Compresion gzip/brotli y ETag.
+    // - Compresion solo si la respuesta supera 1KB y no es WebSocket.
+    // - El header X-No-Compression desactiva la compresion (util para
+    //   debugging via curl).
+    app.use(
+        compression({
+            threshold: 1024,
+            filter: (req, res) => {
+                if (req.headers['x-no-compression']) return false;
+                return compression.filter(req, res);
+            },
+        }),
+    );
+    // ETag fuerte por contenido (Express ya lo incluye, lo hacemos explicito).
+    app.set('etag', 'strong');
+
+    // 4a. Request ID + access log (Hito 5.3.5) — primero, para que TODO log lleve correlation
+    app.use(requestIdMiddleware);
+
+    // 4a-bis. Health checks (Hito 5.3.6) — ANTES del rate limiter, sin auth
+    app.use(healthRouter);
+
+    // 4b. Rate Limiter Global
     app.use(globalLimiter);
 
     // 5a. Webhook de Stripe — necesita body RAW antes de que express.json lo parsee
@@ -75,6 +102,10 @@ export const buildServer = (): Express => {
     // 5b. Body Parser con límite de tamaño (previene payload abuse)
     app.use(express.json({ limit: '16kb' }));
 
+    // 5b. Métricas Prometheus (Hito 5.3.2)
+    app.use(httpMetricsMiddleware);
+    app.get('/metrics', metricsHandler);
+
     // 6. Rutas
     app.use('/api', apiRouter);
 
@@ -82,6 +113,9 @@ export const buildServer = (): Express => {
     if (process.env.NODE_ENV !== 'production') {
         app.use('/debug', debugRouter);
     }
+
+    // 8a. Sentry error handler (Hito 5.3.1) — captura todo lo que llega aquí
+    Sentry.setupExpressErrorHandler(app);
 
     // 8. Middleware de Manejo de Errores Global (Debe ser el último)
     app.use(globalErrorHandler);

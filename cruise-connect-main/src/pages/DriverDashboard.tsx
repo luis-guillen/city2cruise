@@ -8,7 +8,7 @@ import { useDemoDriverRoute } from '@/hooks/useDemoDriverRoute';
 import IOSStatusBadge from '@/components/ios/IOSStatusBadge';
 import GlassNavbar from '@/components/ios/GlassNavbar';
 import GlassCard from '@/components/ios/GlassCard';
-import DriverMap from '@/components/DriverMap';
+import DriverMap from '@/components/maps/LazyDriverMap';
 import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
 import { NotificationSettings } from '@/components/NotificationSettings';
 import { toast } from 'sonner';

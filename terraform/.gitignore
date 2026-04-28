@@ -1,0 +1,16 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+
+# Secretos: solo se commitean *.example
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Plan files
+*.tfplan

@@ -26,11 +26,22 @@
   --ios-bg-tertiary: #F2F2F7;
   --ios-bg-grouped: #F2F2F7;
 
-  /* Text */
+  /* Text — Hito 4.1.3: tokens AA por defecto.
+       Originales iOS (#8E8E93 / #C7C7CC) fallan WCAG 2.1 AA (2.92 / 1.68).
+       Conservados como --ios-text-secondary-soft / --ios-text-tertiary-soft
+       para uso decorativo (>=18pt o no-texto). */
   --ios-text-primary: #1C1C1E;
-  --ios-text-secondary: #8E8E93;
-  --ios-text-tertiary: #C7C7CC;
-  --ios-text-quaternary: #D1D1D6;
+  --ios-text-secondary: #5C5C61;
+  --ios-text-tertiary: #6E6E73;
+  --ios-text-quaternary: #8E8E93;
+  --ios-text-secondary-soft: #8E8E93;
+  --ios-text-tertiary-soft: #C7C7CC;
+
+  /* Brand AA — versiones con contraste suficiente para texto sobre claro */
+  --ios-blue-aa: #0066CC;
+  --ios-red-aa: #D70015;
+  --ios-orange-aa: #995700;
+  --ios-green-aa: #1F8B3D;
 
   /* Separators */
   --ios-separator: rgba(60, 60, 67, 0.12);
@@ -728,4 +739,195 @@
   backdrop-filter: blur(40px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(40px) saturate(180%) !important;
   border-radius: var(--ios-radius-md) !important;
+}
+
+/* ── Hito 4.1.2: Focus visible global y reduced motion ── */
+
+/* Focus visible más fuerte que el outline default del navegador */
+:where(a, button, [role="button"], [role="radio"], [role="tab"], [role="menuitem"], input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--ios-blue, #007AFF);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Skip-link visible solo cuando recibe foco (componenteado en Layout.tsx) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Honra prefers-reduced-motion: deshabilita animaciones */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Mapa Leaflet: desactivar zoom animado */
+  .leaflet-zoom-anim .leaflet-zoom-animated {
+    transition: none !important;
+  }
+
+  /* Blobs decorativos: ocultar para no marear */
+  [aria-hidden="true"][class*="blur-"] {
+    display: none;
+  }
+}
+
+/* Hito 4.1.2: tap targets mínimos en perfil estándar (44×44 — WCAG AAA es 44, AA es 24) */
+button, [role="button"], a {
+  min-block-size: 24px;
+}
+
+/* ── Hito 4.1.3: Modos de contraste alto ──
+ *
+ * data-a11y-contrast="high" en <html> activa una paleta con contraste mínimo
+ * AAA (texto >= 7:1) y reduce drásticamente el blur del glass para evitar
+ * que texto se camufle con backgrounds variables.
+ */
+:root[data-a11y-contrast="high"] {
+  --ios-text-primary: #000000;
+  --ios-text-secondary: #2A2A2D;
+  --ios-text-tertiary: #424247;
+  --ios-text-quaternary: #5C5C61;
+
+  --ios-blue: #0050A0;       /* AAA en blanco */
+  --ios-blue-aa: #0050A0;
+  --ios-red: #A50012;
+  --ios-red-aa: #A50012;
+  --ios-orange: #7A4500;
+  --ios-orange-aa: #7A4500;
+  --ios-green: #15722E;
+  --ios-green-aa: #15722E;
+
+  --glass-bg: #FFFFFF;
+  --glass-bg-thick: #FFFFFF;
+  --glass-bg-thin: #F2F2F7;
+  --glass-bg-ultra: #FFFFFF;
+  --glass-blur: 0px;
+  --glass-blur-light: 0px;
+  --glass-blur-heavy: 0px;
+  --glass-saturate: 100%;
+  --glass-border: #1C1C1E;
+  --glass-border-subtle: #5C5C61;
+}
+
+:root[data-a11y-contrast="high"] .glass,
+:root[data-a11y-contrast="high"] .glass-thick,
+:root[data-a11y-contrast="high"] .glass-thin,
+:root[data-a11y-contrast="high"] .glass-ultra {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-width: 1px;
+}
+
+/* Modo respuesta del sistema: prefers-contrast: more (Safari/Firefox) */
+@media (prefers-contrast: more) {
+  :root:not([data-a11y-contrast="off"]) {
+    --ios-text-secondary: #2A2A2D;
+    --ios-text-tertiary: #424247;
+    --glass-bg: rgba(255, 255, 255, 0.97);
+    --glass-bg-thick: rgba(255, 255, 255, 0.99);
+  }
+}
+
+/* ── Hito 4.1.4: Perfil age_advanced ──
+ * Aplicado via <html data-a11y-profile="age_advanced">.
+ * Aumenta tipografía base, tap targets, espaciado y suaviza animaciones.
+ */
+:root[data-a11y-profile="age_advanced"] {
+  font-size: 18px;          /* base 18px (default 16) */
+  line-height: 1.65;
+  --ios-radius-sm: 14px;
+  --ios-radius-md: 18px;
+  --ios-radius-lg: 24px;
+  --glass-blur: 24px;       /* menos blur, más legible */
+  --glass-blur-light: 16px;
+  --glass-blur-heavy: 36px;
+}
+
+:root[data-a11y-profile="age_advanced"] body {
+  font-size: 1rem;          /* hereda los 18px del :root */
+}
+
+:root[data-a11y-profile="age_advanced"] button,
+:root[data-a11y-profile="age_advanced"] [role="button"],
+:root[data-a11y-profile="age_advanced"] a,
+:root[data-a11y-profile="age_advanced"] input,
+:root[data-a11y-profile="age_advanced"] select,
+:root[data-a11y-profile="age_advanced"] textarea {
+  min-block-size: 48px;     /* WCAG 2.5.5 AAA */
+  font-size: 1rem;
+}
+
+:root[data-a11y-profile="age_advanced"] .ios-caption,
+:root[data-a11y-profile="age_advanced"] .text-xs {
+  font-size: 0.95rem !important;   /* sube los textos pequeños */
+}
+
+:root[data-a11y-profile="age_advanced"] .text-sm {
+  font-size: 1rem !important;
+}
+
+/* Espaciado más generoso entre acciones para evitar fat-finger errors */
+:root[data-a11y-profile="age_advanced"] .grid {
+  gap: 1rem;
+}
+
+/* Reducir animaciones agresivas */
+:root[data-a11y-profile="age_advanced"] *,
+:root[data-a11y-profile="age_advanced"] *::before,
+:root[data-a11y-profile="age_advanced"] *::after {
+  animation-duration: 0.4s !important;
+}
+
+/* ── Hito 4.1.5: Perfil PMR ──
+ * Aplicado via <html data-a11y-profile="pmr">.
+ * Optimiza para lectores de pantalla y navegación reducida.
+ */
+:root[data-a11y-profile="pmr"] {
+  --ios-radius-sm: 12px;
+  --ios-radius-md: 16px;
+  --ios-radius-lg: 20px;
+}
+
+:root[data-a11y-profile="pmr"] button,
+:root[data-a11y-profile="pmr"] [role="button"],
+:root[data-a11y-profile="pmr"] a {
+  min-block-size: 48px;
+  min-inline-size: 48px;
+}
+
+/* En PMR: por defecto no autoplay de animaciones (parsea como reduced motion) */
+:root[data-a11y-profile="pmr"] *,
+:root[data-a11y-profile="pmr"] *::before,
+:root[data-a11y-profile="pmr"] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.1s !important;
+}
+
+/* Indicador visual fuerte de focus en PMR */
+:root[data-a11y-profile="pmr"] :focus-visible {
+  outline: 3px solid var(--ios-blue, #007AFF);
+  outline-offset: 3px;
+}
+
+/* Forzar reduced-motion via toggle del usuario */
+:root[data-a11y-reduced-motion="1"] *,
+:root[data-a11y-reduced-motion="1"] *::before,
+:root[data-a11y-reduced-motion="1"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }

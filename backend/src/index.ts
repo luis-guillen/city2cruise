@@ -1,3 +1,7 @@
+// Hito 5.3.1 — Sentry debe inicializarse ANTES que cualquier otro import
+import { initSentry } from './observability/sentry';
+initSentry();
+
 import http from 'http';
 import { config } from './config/env';
 import { initDB } from './db/database';
@@ -6,6 +10,7 @@ import { buildServer } from './server';
 import { logger } from './utils/logger';
 import { startPickupReminderScheduler, stopPickupReminderScheduler } from './jobs/pickupReminderJob';
 import { startLockerSync, stopLockerSync } from './services/LockerSyncService';
+import { bootstrap } from './cluster';
 
 const startServer = async () => {
     try {
@@ -44,4 +49,6 @@ const startServer = async () => {
     }
 };
 
-startServer();
+// Hito 4.3.1 — Si CLUSTER_ENABLED=1 (o NODE_ENV=production), arranca
+// N workers via node:cluster; si no, single-process como antes.
+bootstrap(startServer);

@@ -29,6 +29,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from .agent import RLAgent
+from .twin_bridge import TwinClient, train_with_twin_scenarios
 from .schemas import (
     AssignRequest,
     AssignResponse,
@@ -145,3 +146,49 @@ async def train(body: TrainRequest, background_tasks: BackgroundTasks):
         status="training_started",
         timesteps=body.timesteps,
     )
+
+
+# ─── Hito 5.4.2 — Sim-to-Real con Digital Twin ──────────────────────────────
+
+@app.post("/train_from_twin")
+async def train_from_twin(
+    n_scenarios: int = 5,
+    minutes_per_scenario: int = 30,
+    drivers_online: int = 10,
+    request_rate_per_min: float = 2.0,
+    background_tasks: BackgroundTasks = None,
+):
+    """
+    Hito 5.4.2 — Pipeline sim-to-real.
+    Ejecuta N escenarios sintéticos en el Digital Twin y dispara un train()
+    del agente con timesteps proporcionales al volumen simulado.
+
+    Devuelve un resumen sincrónico del run (escenarios + timesteps);
+    el train del modelo corre en background si tarda mucho.
+    """
+    global _is_training
+    agent = get_agent()
+
+    if _is_training:
+        raise HTTPException(status_code=409, detail="Training already in progress")
+
+    twin = TwinClient()
+    try:
+        twin.health()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Twin no accesible: {exc}") from exc
+
+    _is_training = True
+    try:
+        result = train_with_twin_scenarios(
+            agent=agent,
+            twin=twin,
+            n_scenarios=n_scenarios,
+            minutes_per_scenario=minutes_per_scenario,
+            drivers_online=drivers_online,
+            request_rate=request_rate_per_min,
+        )
+    finally:
+        _is_training = False
+
+    return result

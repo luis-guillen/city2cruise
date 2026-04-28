@@ -42,8 +42,8 @@ describe('LoginPage', () => {
 
   it('renders login tab by default', () => {
     renderLoginPage();
-    expect(screen.getAllByRole('button', { name: /iniciar sesión/i })[0]).toBeDefined();
-    expect(screen.getByRole('button', { name: /registrarse/i })).toBeDefined();
+    expect(screen.getByRole('radio', { name: /iniciar sesión/i })).toBeDefined();
+    expect(screen.getByRole('radio', { name: /registrarse/i })).toBeDefined();
   });
 
   it('login tab shows email and password fields', () => {
@@ -56,7 +56,7 @@ describe('LoginPage', () => {
 
   it('register tab shows name, email and password fields', async () => {
     renderLoginPage();
-    fireEvent.click(screen.getByRole('button', { name: /registrarse/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /registrarse/i }));
     expect(screen.getByPlaceholderText(/tu nombre/i)).toBeDefined();
     expect(screen.getByPlaceholderText(/tu@email\.com/i)).toBeDefined();
     expect(screen.getByPlaceholderText(/mínimo 6 caracteres/i)).toBeDefined();
@@ -66,7 +66,7 @@ describe('LoginPage', () => {
     const { loginUser } = await import('@/services/api');
     renderLoginPage();
     // In current implementation, handleSubmit does validation
-    fireEvent.submit(screen.getAllByRole('button', { name: /iniciar sesión/i })[1].closest('form')!);
+    fireEvent.submit(screen.getByRole('button', { name: /iniciar sesión/i }).closest('form')!);
     await waitFor(() => {
       expect(loginUser).not.toHaveBeenCalled();
     });
@@ -76,7 +76,7 @@ describe('LoginPage', () => {
     const { loginUser } = await import('@/services/api');
     vi.mocked(loginUser).mockResolvedValue({
       token: 'test-token',
-      user: { id: 1, name: 'Test', role: 'CLIENT', latitude: null, longitude: null } as any,
+      user: { id: 1, name: 'Test', role: 'CLIENT', latitude: null, longitude: null },
     });
 
     renderLoginPage();
@@ -86,7 +86,7 @@ describe('LoginPage', () => {
     fireEvent.change(screen.getByPlaceholderText(/mínimo 6 caracteres/i), {
       target: { value: 'password123' },
     });
-    fireEvent.submit(screen.getAllByRole('button', { name: /iniciar sesión/i })[1].closest('form')!);
+    fireEvent.submit(screen.getByRole('button', { name: /iniciar sesión/i }).closest('form')!);
 
     await waitFor(() => {
       expect(loginUser).toHaveBeenCalledWith('test@example.com', 'password123');
@@ -95,7 +95,7 @@ describe('LoginPage', () => {
 
   it('shows submit button as "Crear cuenta" in register mode', () => {
     renderLoginPage();
-    fireEvent.click(screen.getByRole('button', { name: /registrarse/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /registrarse/i }));
     expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeDefined();
   });
 });

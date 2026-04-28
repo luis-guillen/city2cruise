@@ -1,0 +1,20 @@
+# OWASP ZAP rules tuning para City2Cruise
+# Formato: <ruleId>	<threshold>	<comment>
+# threshold: IGNORE | INFO | WARN | FAIL
+
+# Falsos positivos comunes en SPAs
+10049	IGNORE	Storable / Cacheable Content (PWA precache es esperado)
+10063	IGNORE	Permissions Policy Header Not Set (mejora futura no bloqueante)
+10096	IGNORE	Timestamp Disclosure (timestamps en JSON API son intencionales)
+10027	IGNORE	Information Disclosure - Suspicious Comments (false positives)
+10019	IGNORE	Content-Type Header Missing (Vite genera correctos)
+
+# Reglas que SÍ queremos como WARN (visible en report)
+10038	WARN	CSP Header Not Set (revisar a mano)
+10202	WARN	Absence of Anti-CSRF Tokens (SPA con JWT no necesita CSRF en mismo origen)
+
+# Reglas que DEBEN fallar el scan
+40012	FAIL	Cross Site Scripting (Reflected)
+40014	FAIL	Cross Site Scripting (Persistent)
+40018	FAIL	SQL Injection
+90020	FAIL	Remote OS Command Injection

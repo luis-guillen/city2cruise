@@ -1,0 +1,48 @@
+# Hito 5.1.2 — Fly.io production app config
+# Despliegue: flyctl deploy --config deploy/fly/fly.production.toml --app city2cruise-backend
+
+app = "city2cruise-backend"
+primary_region = "mad"
+kill_signal = "SIGTERM"
+kill_timeout = 30
+
+[build]
+  dockerfile = "../../backend/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  CLUSTER_ENABLED = "0"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  auto_stop_machines = false   # produccion siempre caliente
+  auto_start_machines = true
+  min_machines_running = 2     # alta disponibilidad
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 500
+    soft_limit = 250
+
+  [[services.http_checks]]
+    interval = "10s"
+    grace_period = "30s"
+    method = "get"
+    path = "/api/health"
+    protocol = "http"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory_mb = 512
