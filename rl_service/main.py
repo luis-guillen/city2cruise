@@ -1,0 +1,147 @@
+"""
+CruiseDispatch RL microservice — FastAPI entry point.
+
+Endpoints
+─────────
+GET  /health                 Liveness probe
+GET  /metrics                Model metadata and training stats
+POST /assign                 Rank drivers for a given state tensor (main inference)
+POST /train                  Trigger a training run (async background task)
+
+Run
+───
+uvicorn rl_service.main:app --host 0.0.0.0 --port 8080 --workers 1
+
+Environment variables
+─────────────────────
+RL_MODEL_PATH   Path prefix for the .zip checkpoint (default: /tmp/cruise_dispatch_ppo)
+BACKEND_URL     Backend base URL for pulling state tensors (default: http://localhost:9000)
+INTERNAL_KEY    X-Internal-Key for backend /api/internal endpoints
+"""
+
+from __future__ import annotations
+
+import time
+from contextlib import asynccontextmanager
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+
+from .agent import RLAgent
+from .schemas import (
+    AssignRequest,
+    AssignResponse,
+    TrainRequest,
+    TrainResponse,
+    SnapshotMeta,
+)
+
+# ─── App lifecycle ────────────────────────────────────────────────────────────
+
+_agent: Optional[RLAgent] = None
+_is_training = False
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _agent
+    print("[main] Loading RL agent...")
+    _agent = RLAgent()
+    print("[main] Agent ready")
+    yield
+    print("[main] Shutting down")
+
+
+app = FastAPI(
+    title="CruiseDispatch RL Service",
+    description="PPO-based driver-dispatch microservice for City2Cruise (Sprint 3.E)",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # restrict in production to backend origin
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+
+# ─── Dependency ───────────────────────────────────────────────────────────────
+
+def get_agent() -> RLAgent:
+    if _agent is None:
+        raise HTTPException(status_code=503, detail="Agent not initialised")
+    return _agent
+
+
+# ─── Routes ───────────────────────────────────────────────────────────────────
+
+@app.get("/health")
+async def health():
+    agent = get_agent()
+    return {
+        "status": "ok",
+        "modelVersion": agent.MODEL_VERSION,
+        "modelReady": True,
+    }
+
+
+@app.get("/metrics", response_model=SnapshotMeta)
+async def metrics():
+    meta = get_agent().metadata()
+    return SnapshotMeta(
+        totalTimesteps=meta["totalTimesteps"],
+        modelVersion=meta["modelVersion"],
+        lastTrainedAt=meta["lastTrainedAt"],
+    )
+
+
+@app.post("/assign", response_model=AssignResponse)
+async def assign(body: AssignRequest):
+    """
+    Rank available drivers for the most urgent pending request in the state tensor.
+    Returns drivers sorted by RL confidence score (descending).
+    Inference is synchronous and designed to complete in < 20 ms.
+    """
+    t0 = time.monotonic()
+    agent = get_agent()
+
+    rankings = agent.get_rankings(body.state)
+
+    inference_ms = (time.monotonic() - t0) * 1000
+    return AssignResponse(
+        requestId=body.requestId,
+        rankings=rankings,
+        modelVersion=agent.MODEL_VERSION,
+        inferenceMs=round(inference_ms, 2),
+    )
+
+
+@app.post("/train", response_model=TrainResponse)
+async def train(body: TrainRequest, background_tasks: BackgroundTasks):
+    """
+    Trigger a PPO training run in the background.
+    Only one training run executes at a time; subsequent calls queue.
+    """
+    global _is_training
+    agent = get_agent()
+
+    if _is_training:
+        raise HTTPException(status_code=409, detail="Training already in progress")
+
+    async def _run():
+        global _is_training
+        _is_training = True
+        try:
+            agent.train(total_timesteps=body.timesteps)
+        finally:
+            _is_training = False
+
+    background_tasks.add_task(_run)
+
+    return TrainResponse(
+        status="training_started",
+        timesteps=body.timesteps,
+    )
