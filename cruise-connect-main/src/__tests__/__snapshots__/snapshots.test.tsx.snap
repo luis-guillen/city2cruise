@@ -1,0 +1,153 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > MapTextAlternative > completo (con distancia, ETA, status, 2 locations) mantiene snapshot 1`] = `
+<section
+  aria-label="Trayecto (vista textual accesible)"
+  class="rounded-xl border border-border bg-card p-4 my-3"
+>
+  <header
+    class="flex items-center justify-between mb-3"
+  >
+    <h3
+      class="font-semibold text-sm"
+    >
+      Trayecto
+       — vista accesible
+    </h3>
+  </header>
+  <p
+    aria-atomic="true"
+    aria-live="polite"
+    class="text-sm text-muted-foreground mb-3"
+  >
+    <span
+      class="font-medium text-foreground"
+    >
+      En camino al locker
+      . 
+    </span>
+    <span>
+      Distancia: 
+      1.40
+       km.
+       
+    </span>
+    <span>
+      Llegada estimada en 
+      7
+       minutos.
+    </span>
+  </p>
+  <ul
+    class="space-y-2"
+    role="list"
+  >
+    <li
+      class="rounded-md border border-border/50 bg-background px-3 py-2"
+    >
+      <span
+        class="block font-medium text-sm"
+      >
+        Tu posición
+      </span>
+      <span
+        class="block text-xs text-muted-foreground"
+      >
+        Coordenadas: 
+        28.12300
+        , 
+        -15.43600
+      </span>
+    </li>
+    <li
+      class="rounded-md border border-border/50 bg-background px-3 py-2"
+    >
+      <span
+        class="block font-medium text-sm"
+      >
+        Conductor
+      </span>
+      <span
+        class="block text-xs text-muted-foreground"
+      >
+        Coordenadas: 
+        28.13000
+        , 
+        -15.43000
+      </span>
+      <span
+        class="block text-xs text-muted-foreground mt-1"
+      >
+        ETA 5 min
+      </span>
+    </li>
+  </ul>
+</section>
+`;
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > NavLink > activo (ruta coincide) mantiene snapshot 1`] = `
+<a
+  aria-current="page"
+  class="base active"
+  href="/admin"
+>
+  Admin
+</a>
+`;
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > NavLink > inactivo mantiene snapshot 1`] = `
+<a
+  class="base"
+  href="/admin"
+>
+  Admin
+</a>
+`;
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > StatusBadge > StatusBadge[ACCEPTED] mantiene snapshot 1`] = `
+<span
+  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-status-accepted text-status-accepted-foreground"
+>
+  Aceptado
+</span>
+`;
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > StatusBadge > StatusBadge[CONFIRMATION_PENDING] mantiene snapshot 1`] = `
+<span
+  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 border-amber-200"
+>
+  En encuentro
+</span>
+`;
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > StatusBadge > StatusBadge[DEPOSITED] mantiene snapshot 1`] = `
+<span
+  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-status-deposited text-status-deposited-foreground"
+>
+  Depositado
+</span>
+`;
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > StatusBadge > StatusBadge[IN_PROGRESS] mantiene snapshot 1`] = `
+<span
+  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 border-blue-200"
+>
+  En traslado
+</span>
+`;
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > StatusBadge > StatusBadge[PICKED_UP] mantiene snapshot 1`] = `
+<span
+  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-status-picked-up text-status-picked-up-foreground"
+>
+  Recogido
+</span>
+`;
+
+exports[`Hito 6.1.4 — Snapshots de UI crítica > StatusBadge > StatusBadge[REQUESTED] mantiene snapshot 1`] = `
+<span
+  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-status-requested text-status-requested-foreground"
+>
+  Solicitado
+</span>
+`;
