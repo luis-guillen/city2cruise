@@ -74,7 +74,6 @@ export const config = {
         privateKey: process.env.VAPID_PRIVATE_KEY || '0XNrTZGcDO3c8ybvBIQsyrnSFEaSFb4MCHdfvftdAis',
         subject: process.env.VAPID_SUBJECT || 'mailto:admin@city2cruise.com',
     },
-    redisUrl: process.env.REDIS_URL || '',   // empty = Redis disabled, cache bypassed
     pickupReminderHours: parseInt(process.env.PICKUP_REMINDER_HOURS || '6', 10),
     locker: {
         /** 'mock' uses MockAdapter; 'rest' uses RestAdapter (requires restBaseUrl) */

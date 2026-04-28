@@ -13,9 +13,6 @@ import { isInsideServiceArea, getRandomLasPalmasLocation } from "@/utils/geofenc
  * @param fallbackCoords  Coordenadas de fallback del usuario (de BD). Si no hay, genera random en Las Palmas.
  * @param isDemoAccount  Si es true, no emite actualizaciones al servidor (evita pisar el teletransporte).
  */
-// Minimum ms between socket emissions — prevents flooding on high-accuracy GPS
-const GPS_EMIT_INTERVAL_MS = 1000;
-
 export function useDriverGeoLocation(
     enabled: boolean,
     fallbackCoords?: { lat: number; lon: number } | null,
@@ -23,7 +20,6 @@ export function useDriverGeoLocation(
 ) {
     const watchIdRef = useRef<number | null>(null);
     const randomFallbackRef = useRef<{ lat: number; lon: number } | null>(null);
-    const lastEmitRef = useRef<number>(0);
     const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
     const [error, setError] = useState<boolean>(false);
     const [outsideZone, setOutsideZone] = useState<boolean>(false);
@@ -42,15 +38,9 @@ export function useDriverGeoLocation(
         if (!enabled) return;
 
         const emit = (lat: number, lon: number) => {
-            // UI state updates immediately on every position fix
             setLocation({ lat, lon });
             setOutsideZone(!isInsideServiceArea(lat, lon));
-
-            // Socket emission is throttled: at most once per GPS_EMIT_INTERVAL_MS
             if (!socket.connected || _isDemoAccount) return;
-            const now = Date.now();
-            if (now - lastEmitRef.current < GPS_EMIT_INTERVAL_MS) return;
-            lastEmitRef.current = now;
             socket.emit("driver:location:update", { lat, lon });
         };
 

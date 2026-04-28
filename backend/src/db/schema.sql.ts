@@ -302,13 +302,6 @@ CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts(ip, c
 CREATE INDEX IF NOT EXISTS idx_login_attempts_email_created ON login_attempts(email, created_at);
 CREATE INDEX IF NOT EXISTS idx_gps_positions_user_ts ON gps_positions(user_id, server_ts DESC);
 
--- Compound indexes for admin timing queries (heavy self-JOINs on audit_events)
-CREATE INDEX IF NOT EXISTS idx_audit_events_type_request ON audit_events(event_type, request_id);
-
--- Compound indexes for dispatch and admin subqueries
-CREATE INDEX IF NOT EXISTS idx_pickup_requests_status_driver ON pickup_requests(status, driver_id) WHERE driver_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_pickup_requests_driver_status ON pickup_requests(driver_id, status);
-
 -- ─── TELEMETRY STATE SNAPSHOTS ───────────────────────────────────────────────
 -- Stores periodic state-tensor snapshots for RL training and offline debugging.
 CREATE TABLE IF NOT EXISTS telemetry_state_snapshots (

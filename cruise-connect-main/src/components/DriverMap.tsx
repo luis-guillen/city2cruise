@@ -1,5 +1,4 @@
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMap } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import { useEffect, useState } from 'react';
 import L from 'leaflet';
 import type { PickupRequest } from '@/services/api';
@@ -168,54 +167,40 @@ export default function DriverMap({ center, radiusKm, pendingRequests, onAccept,
         </>
       )}
 
-      {/* Pending Request markers — grouped with MarkerClusterGroup */}
-      {!activeRequest && (
-        <MarkerClusterGroup
-          chunkedLoading
-          maxClusterRadius={60}
-          showCoverageOnHover={false}
-          iconCreateFunction={(cluster) => L.divIcon({
-            className: '',
-            html: `<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#FF9500,#FFCC00);border:3px solid white;box-shadow:0 2px 10px rgba(255,149,0,0.45);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:white">${cluster.getChildCount()}</div>`,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18],
-          })}
-        >
-          {pendingRequests.filter(r => r.latitude && r.longitude).map((req) => {
-            const dist = getDistanceFromLatLonInKm(center[0], center[1], req.latitude!, req.longitude!);
-            return (
-              <Marker key={req.id} position={[req.latitude!, req.longitude!]} icon={requestIcon}>
-                <Popup>
-                  <div style={{ fontFamily: '-apple-system, Inter, sans-serif', fontSize: 13, minWidth: 180 }}>
-                    <p style={{ fontWeight: 600, marginBottom: 4 }}>{req.pickupLocation}</p>
-                    <p style={{ color: '#8E8E93', marginBottom: 4 }}>
-                      {dist.toFixed(2)} km &middot; {sizeLabel(req.packageSize)}
-                    </p>
-                    <button
-                      onClick={() => onAccept(req)}
-                      disabled={isLoading}
-                      style={{
-                        width: '100%',
-                        padding: '8px 0',
-                        background: '#007AFF',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 10,
-                        fontSize: 14,
-                        fontWeight: 600,
-                        cursor: isLoading ? 'not-allowed' : 'pointer',
-                        opacity: isLoading ? 0.5 : 1,
-                      }}
-                    >
-                      {isLoading ? 'Cargando...' : 'Aceptar'}
-                    </button>
-                  </div>
-                </Popup>
-              </Marker>
-            );
-          })}
-        </MarkerClusterGroup>
-      )}
+      {/* Pending Request markers */}
+      {!activeRequest && pendingRequests.filter(r => r.latitude && r.longitude).map((req) => {
+        const dist = getDistanceFromLatLonInKm(center[0], center[1], req.latitude!, req.longitude!);
+        return (
+          <Marker key={req.id} position={[req.latitude!, req.longitude!]} icon={requestIcon}>
+            <Popup>
+              <div style={{ fontFamily: '-apple-system, Inter, sans-serif', fontSize: 13, minWidth: 180 }}>
+                <p style={{ fontWeight: 600, marginBottom: 4 }}>{req.pickupLocation}</p>
+                <p style={{ color: '#8E8E93', marginBottom: 4 }}>
+                  {dist.toFixed(2)} km &middot; {sizeLabel(req.packageSize)}
+                </p>
+                <button
+                  onClick={() => onAccept(req)}
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    padding: '8px 0',
+                    background: '#007AFF',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: isLoading ? 'not-allowed' : 'pointer',
+                    opacity: isLoading ? 0.5 : 1,
+                  }}
+                >
+                  {isLoading ? 'Cargando...' : 'Aceptar'}
+                </button>
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
     </MapContainer>
   );
 }
