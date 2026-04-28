@@ -13,7 +13,7 @@ import GlassInput from '@/components/ios/GlassInput';
 import GlassSegmented from '@/components/ios/GlassSegmented';
 import IOSNotificationBell from '@/components/ios/IOSNotificationBell';
 import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
-import ClientTrackingMap from '@/components/ClientTrackingMap';
+import ClientTrackingMap from '@/components/maps/LazyClientTrackingMap';
 import StripeCheckout from '@/components/StripeCheckout';
 import { NotificationSettings } from '@/components/NotificationSettings';
 import { toast } from 'sonner';

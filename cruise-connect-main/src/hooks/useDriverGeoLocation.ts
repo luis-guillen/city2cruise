@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { throttle } from "@/utils/throttle";
 import { socket } from "@/socket";
 import { isInsideServiceArea, getRandomLasPalmasLocation } from "@/utils/geofence";
 
@@ -37,13 +38,17 @@ export function useDriverGeoLocation(
     useEffect(() => {
         if (!enabled) return;
 
-        const emit = (lat: number, lon: number) => {
-            setLocation({ lat, lon });
-            setOutsideZone(!isInsideServiceArea(lat, lon));
-            // Si es cuenta de demo, no emitimos para dejar que el servidor controle la posición de la demo
+        // Hito 4.2.2 — throttle de la emision al servidor a 1 update/seg
+        // (la posicion local se sigue actualizando para mantener UI suave).
+        const emitToServer = throttle((lat: number, lon: number) => {
             if (socket.connected && !_isDemoAccount) {
                 socket.emit("driver:location:update", { lat, lon });
             }
+        }, 1000);
+        const emit = (lat: number, lon: number) => {
+            setLocation({ lat, lon });
+            setOutsideZone(!isInsideServiceArea(lat, lon));
+            emitToServer(lat, lon);
         };
 
         if (navigator.geolocation) {
@@ -97,6 +102,7 @@ export function useDriverGeoLocation(
                 navigator.geolocation.clearWatch(watchIdRef.current);
                 watchIdRef.current = null;
             }
+            emitToServer.cancel();
         };
     }, [enabled]);
 
