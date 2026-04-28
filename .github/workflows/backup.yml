@@ -1,0 +1,36 @@
+name: Backup (Neon snapshots)
+
+on:
+  schedule:
+    # Diario a las 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  neon-snapshot:
+    name: Neon snapshot (production)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Snapshot Neon production
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID_PROD }}
+        run: |
+          chmod +x scripts/backup/neon-snapshot.sh
+          scripts/backup/neon-snapshot.sh
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "🚨 City2Cruise: Backup Neon falló (${{ github.run_id }}). Revisar inmediatamente."
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        continue-on-error: true
