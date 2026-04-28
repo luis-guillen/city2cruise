@@ -8,7 +8,7 @@
 set -uo pipefail
 
 ROOT=$(git rev-parse --show-toplevel)
-cd "$ROOT"
+cd "$ROOT" || exit 1
 
 declare -i FOUND=0
 
