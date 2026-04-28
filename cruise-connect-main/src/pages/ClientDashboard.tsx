@@ -15,6 +15,7 @@ import IOSNotificationBell from '@/components/ios/IOSNotificationBell';
 import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
 import ClientTrackingMap from '@/components/ClientTrackingMap';
 import StripeCheckout from '@/components/StripeCheckout';
+import { NotificationSettings } from '@/components/NotificationSettings';
 import { toast } from 'sonner';
 import {
   Package, MapPin, ShieldCheck, Lock, PackageCheck,
@@ -49,7 +50,7 @@ export default function ClientDashboard() {
   useSocket();
   const { outsideZone, loading: geoLoading } = useClientGeoLocation();
 
-  const [activeTab, setActiveTab] = useState<'current' | 'history'>('current');
+  const [activeTab, setActiveTab] = useState<'current' | 'history' | 'settings'>('current');
   const [history, setHistory] = useState<PickupRequest[]>([]);
 
   // Request form
@@ -262,9 +263,10 @@ export default function ClientDashboard() {
           items={[
             { id: 'current', label: 'Actual' },
             { id: 'history', label: 'Historial' },
+            { id: 'settings', label: 'Ajustes' },
           ]}
           active={activeTab}
-          onChange={(id) => setActiveTab(id as 'current' | 'history')}
+          onChange={(id) => setActiveTab(id as 'current' | 'history' | 'settings')}
           className="mb-5"
         />
 
@@ -666,6 +668,12 @@ export default function ClientDashboard() {
               ))
             )}
           </div>
+        )}
+        {/* ═══ SETTINGS TAB ═══ */}
+        {activeTab === 'settings' && (
+          <GlassCard variant="default">
+            <NotificationSettings />
+          </GlassCard>
         )}
       </div>
     </div>

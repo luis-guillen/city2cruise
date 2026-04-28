@@ -55,9 +55,12 @@ CREATE TABLE IF NOT EXISTS lockers (
   current_request_id INTEGER NULL,
   access_code TEXT NULL,
   hub_id TEXT DEFAULT 'LPA-PUERTO',
+  hw_status TEXT NOT NULL DEFAULT 'ONLINE' CHECK(hw_status IN ('ONLINE','OUT_OF_SERVICE','MAINTENANCE')),
   last_sync_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Idempotent migration: add hw_status if this table already exists without it
+ALTER TABLE lockers ADD COLUMN IF NOT EXISTS hw_status TEXT NOT NULL DEFAULT 'ONLINE' CHECK(hw_status IN ('ONLINE','OUT_OF_SERVICE','MAINTENANCE'));
 
 -- ─── PICKUP REQUESTS ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pickup_requests (
@@ -94,6 +97,39 @@ CREATE TABLE IF NOT EXISTS notifications (
   title TEXT NOT NULL,
   message TEXT NOT NULL,
   read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── NOTIFICATION TEMPLATES ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS notification_templates (
+  id SERIAL PRIMARY KEY,
+  key TEXT NOT NULL,
+  locale TEXT NOT NULL DEFAULT 'es' CHECK(locale IN ('es','en','ca')),
+  channel TEXT NOT NULL CHECK(channel IN ('push','sms','both')),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(key, locale, channel)
+);
+
+-- ─── USER NOTIFICATION PREFERENCES ──────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_notification_prefs (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  push_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  sms_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  locale TEXT NOT NULL DEFAULT 'es' CHECK(locale IN ('es','en','ca')),
+  phone TEXT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── PUSH SUBSCRIPTIONS (VAPID) ──────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -142,6 +178,17 @@ CREATE TABLE IF NOT EXISTS stripe_webhook_events (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
   processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ─── LOCKER HARDWARE EVENTS ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS locker_hw_events (
+  id TEXT PRIMARY KEY,
+  locker_id INTEGER NOT NULL REFERENCES lockers(id),
+  event_type TEXT NOT NULL CHECK(event_type IN ('OPEN','CLOSE','STATUS_CHECK','EMERGENCY_OPEN','MARKED_OUT_OF_SERVICE','MARKED_ONLINE')),
+  actor_id INTEGER NULL REFERENCES users(id),  -- NULL means automated/system event
+  metadata JSONB NULL,
+  signature TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ─── AUDIT EVENTS ───────────────────────────────────────────────────────────
@@ -236,6 +283,12 @@ CREATE INDEX IF NOT EXISTS idx_users_location ON users USING GIST(location);
 CREATE INDEX IF NOT EXISTS idx_pickup_requests_location ON pickup_requests USING GIST(pickup_location_geo);
 CREATE INDEX IF NOT EXISTS idx_merchants_location ON merchants USING GIST(location);
 
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_templates_key ON notification_templates(key, locale);
+
+CREATE INDEX IF NOT EXISTS idx_locker_hw_events_locker_id ON locker_hw_events(locker_id);
+CREATE INDEX IF NOT EXISTS idx_locker_hw_events_created_at ON locker_hw_events(created_at);
+
 CREATE INDEX IF NOT EXISTS idx_payments_request_id ON payments(request_id);
 CREATE INDEX IF NOT EXISTS idx_payments_client_id ON payments(client_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
@@ -248,4 +301,18 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token
 CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_created ON login_attempts(ip, created_at);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_email_created ON login_attempts(email, created_at);
 CREATE INDEX IF NOT EXISTS idx_gps_positions_user_ts ON gps_positions(user_id, server_ts DESC);
+
+-- ─── TELEMETRY STATE SNAPSHOTS ───────────────────────────────────────────────
+-- Stores periodic state-tensor snapshots for RL training and offline debugging.
+CREATE TABLE IF NOT EXISTS telemetry_state_snapshots (
+  id SERIAL PRIMARY KEY,
+  snapshot JSONB NOT NULL,
+  driver_count INTEGER NOT NULL DEFAULT 0,
+  active_request_count INTEGER NOT NULL DEFAULT 0,
+  locker_occupancy_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+  max_urgency DOUBLE PRECISION NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_snapshots_created_at ON telemetry_state_snapshots(created_at DESC);
 `;

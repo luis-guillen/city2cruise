@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { PickupRequest } from "@/services/api";
 import { getClientMine, getPendingRequests, getDriverPickups, logoutUser } from "@/services/api";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 type Role = "CLIENT" | "DRIVER" | "ADMIN" | null;
 
@@ -73,6 +74,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.addEventListener('auth:logout', handler);
     return () => window.removeEventListener('auth:logout', handler);
   }, [clearLocalState]);
+
+  const { syncSubscription } = usePushNotifications();
+
+  // Re-register existing VAPID subscription silently on every login
+  useEffect(() => {
+    if (token) syncSubscription();
+  }, [token, syncSubscription]);
 
   const refreshData = useCallback(async () => {
     if (!token) return;

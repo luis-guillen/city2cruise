@@ -64,4 +64,36 @@ export const config = {
         currency: process.env.STRIPE_CURRENCY || 'eur',
     },
     noShowRefundMinutes: parseInt(process.env.NO_SHOW_REFUND_MINUTES || '30', 10),
+    twilio: {
+        accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+        authToken: process.env.TWILIO_AUTH_TOKEN || '',
+        fromNumber: process.env.TWILIO_FROM_NUMBER || '',
+    },
+    vapid: {
+        publicKey: process.env.VAPID_PUBLIC_KEY || 'BGscsMyO1ynEmcMgOEYb7GNr0wvkxXi8xq_VxlVOk2QwjSiURUZSJ6-Meeahfu3mxEL4-TaGnoqyAD6Bze-ZQsE',
+        privateKey: process.env.VAPID_PRIVATE_KEY || '0XNrTZGcDO3c8ybvBIQsyrnSFEaSFb4MCHdfvftdAis',
+        subject: process.env.VAPID_SUBJECT || 'mailto:admin@city2cruise.com',
+    },
+    pickupReminderHours: parseInt(process.env.PICKUP_REMINDER_HOURS || '6', 10),
+    locker: {
+        /** 'mock' uses MockAdapter; 'rest' uses RestAdapter (requires restBaseUrl) */
+        provider: (process.env.LOCKER_PROVIDER || 'mock') as 'mock' | 'rest',
+        restBaseUrl: process.env.LOCKER_REST_BASE_URL || '',
+        restApiKey: process.env.LOCKER_REST_API_KEY || '',
+        timeoutMs: parseInt(process.env.LOCKER_TIMEOUT_MS || '5000', 10),
+        /** Fraction of calls that fail randomly in MockAdapter (0-1, for testing) */
+        mockFailRate: parseFloat(process.env.LOCKER_MOCK_FAIL_RATE || '0'),
+        /** Consecutive hw failures before marking locker OUT_OF_SERVICE */
+        outOfServiceThreshold: parseInt(process.env.LOCKER_OOS_THRESHOLD || '3', 10),
+        /** How often the sync service polls hardware state, in ms */
+        syncIntervalMs: parseInt(process.env.LOCKER_SYNC_INTERVAL_MS || '60000', 10),
+    },
+    /** Shared secret for RL microservice → /api/internal/* calls (X-Internal-Key header) */
+    internalApiKey: (() => {
+        const key = process.env.INTERNAL_API_KEY;
+        if (!key && process.env.NODE_ENV === 'production') {
+            throw new Error('FATAL: INTERNAL_API_KEY es obligatorio en producción.');
+        }
+        return key || 'dev_internal_key_change_in_prod';
+    })(),
 };

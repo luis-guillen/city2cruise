@@ -20,6 +20,14 @@ export type AuditEventType =
     | 'PAYMENT_REFUNDED'
     | 'PAYMENT_FAILED';
 
+export type LockerHwEventType =
+    | 'OPEN'
+    | 'CLOSE'
+    | 'STATUS_CHECK'
+    | 'EMERGENCY_OPEN'
+    | 'MARKED_OUT_OF_SERVICE'
+    | 'MARKED_ONLINE';
+
 export interface AuditEventParams {
     requestId: number;
     eventType: AuditEventType;
@@ -62,6 +70,40 @@ export async function logAuditEvent(params: AuditEventParams): Promise<void> {
         logger.info({ eventType: params.eventType, requestId: params.requestId, actorId: params.actorId, auditId: id }, 'Audit event recorded');
     } catch (err) {
         logger.error({ err }, 'Failed to record audit event');
+    }
+}
+
+export interface LockerHwEventParams {
+    lockerId: number;
+    eventType: LockerHwEventType;
+    actorId: number | null; // null for automated/system events
+    metadata?: Record<string, unknown>;
+}
+
+/**
+ * Registra un evento de auditoría de hardware de locker con firma HMAC-SHA256.
+ * Separado de logAuditEvent porque no tiene FK a pickup_requests.
+ */
+export async function logLockerHwEvent(params: LockerHwEventParams): Promise<void> {
+    try {
+        const id = createId();
+        const now = new Date().toISOString();
+        const payload = `${params.lockerId}${params.eventType}${params.actorId ?? 'system'}${now}`;
+        const signature = crypto.createHmac('sha256', config.jwtSecret).update(payload).digest('hex');
+        const metadata = params.metadata ? JSON.stringify(params.metadata) : null;
+
+        await db.query(
+            `INSERT INTO locker_hw_events (id, locker_id, event_type, actor_id, metadata, signature, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [id, params.lockerId, params.eventType, params.actorId, metadata, signature, now],
+        );
+
+        logger.info(
+            { eventType: params.eventType, lockerId: params.lockerId, actorId: params.actorId, hwAuditId: id },
+            'Locker HW audit event recorded',
+        );
+    } catch (err) {
+        logger.error({ err }, 'Failed to record locker HW audit event');
     }
 }
 
