@@ -91,7 +91,7 @@ export default function DriverMap({ center, radiusKm, pendingRequests, onAccept,
   }, [center, activeRequest?.status, activeRequest?.latitude, activeRequest?.longitude]);
 
   return (
-    <MapContainer
+    <MapContainer aria-label="Mapa de solicitudes y ruta del conductor" role="application"
       center={center}
       zoom={14}
       scrollWheelZoom

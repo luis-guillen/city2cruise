@@ -151,7 +151,7 @@ export default function ClientTrackingMap({
   if (selectable) {
     return (
       <div className="h-full w-full">
-        <MapContainer
+        <MapContainer aria-label="Mapa de seguimiento del envío" role="application"
           center={[initialLat || 28.1413, initialLon || -15.4308]}
           zoom={14}
           style={{ height: '100%', width: '100%' }}
@@ -208,7 +208,7 @@ export default function ClientTrackingMap({
       </div>
 
       {/* Mapa */}
-      <MapContainer
+      <MapContainer aria-label="Mapa de seguimiento del envío" role="application"
         center={[driverPos.lat, driverPos.lon]}
         zoom={14}
         scrollWheelZoom={false}
