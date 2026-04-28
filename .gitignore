@@ -16,3 +16,9 @@ __pycache__/
 .pytest_cache/
 .coverage
 .venv/
+
+# Playwright (Hito 6.2)
+cruise-connect-main/e2e/.results/
+cruise-connect-main/e2e/.report/
+cruise-connect-main/test-results/
+cruise-connect-main/playwright-report/

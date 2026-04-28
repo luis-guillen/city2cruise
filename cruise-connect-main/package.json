@@ -17,7 +17,12 @@
     "start:all": "concurrently --kill-others \"npm run dev\" \"npm run dev:backend\"",
     "test:a11y": "vitest run src/__tests__/a11y",
     "test:a11y:strict": "A11Y_STRICT=1 vitest run src/__tests__/a11y",
-    "build:analyze": "ANALYZE=1 vite build && echo \"Open dist/bundle-stats.html\""
+    "build:analyze": "ANALYZE=1 vite build && echo \"Open dist/bundle-stats.html\"",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:debug": "playwright test --debug",
+    "e2e:install": "playwright install --with-deps",
+    "e2e:report": "playwright show-report e2e/.report"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -89,6 +94,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.6.0",
