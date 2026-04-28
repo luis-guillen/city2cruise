@@ -9,6 +9,7 @@ import debugRouter from './routes/debug';
 import { stripeWebhookHandler } from './routes/payments';
 import { globalErrorHandler } from './utils/errors';
 import * as Sentry from '@sentry/node';
+import { httpMetricsMiddleware, metricsHandler } from './observability/metrics';
 import { globalLimiter } from './middleware/rateLimiter';
 
 export const buildServer = (): Express => {
@@ -92,6 +93,10 @@ export const buildServer = (): Express => {
 
     // 5b. Body Parser con límite de tamaño (previene payload abuse)
     app.use(express.json({ limit: '16kb' }));
+
+    // 5b. Métricas Prometheus (Hito 5.3.2)
+    app.use(httpMetricsMiddleware);
+    app.get('/metrics', metricsHandler);
 
     // 6. Rutas
     app.use('/api', apiRouter);
