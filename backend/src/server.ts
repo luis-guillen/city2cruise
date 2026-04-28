@@ -10,6 +10,7 @@ import { stripeWebhookHandler } from './routes/payments';
 import { globalErrorHandler } from './utils/errors';
 import * as Sentry from '@sentry/node';
 import { httpMetricsMiddleware, metricsHandler } from './observability/metrics';
+import { healthRouter } from './routes/health';
 import { requestIdMiddleware } from './middleware/requestId';
 import { globalLimiter } from './middleware/rateLimiter';
 
@@ -84,6 +85,9 @@ export const buildServer = (): Express => {
 
     // 4a. Request ID + access log (Hito 5.3.5) — primero, para que TODO log lleve correlation
     app.use(requestIdMiddleware);
+
+    // 4a-bis. Health checks (Hito 5.3.6) — ANTES del rate limiter, sin auth
+    app.use(healthRouter);
 
     // 4b. Rate Limiter Global
     app.use(globalLimiter);
