@@ -315,4 +315,40 @@ CREATE TABLE IF NOT EXISTS telemetry_state_snapshots (
 );
 
 CREATE INDEX IF NOT EXISTS idx_telemetry_snapshots_created_at ON telemetry_state_snapshots(created_at DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- HITO 4.3.3 — Indices compuestos para queries frecuentes (Phase 4 audit)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- pickup_requests: filtro por driver + status + orden por created_at
+CREATE INDEX IF NOT EXISTS idx_pickup_requests_driver_status_created
+  ON pickup_requests(driver_id, status, created_at DESC);
+
+-- pickup_requests: filtro por client + status (lista "mis envios")
+CREATE INDEX IF NOT EXISTS idx_pickup_requests_client_status_created
+  ON pickup_requests(client_id, status, created_at DESC);
+
+-- pickup_requests: pendientes globales por created_at (lista driver dispatch)
+CREATE INDEX IF NOT EXISTS idx_pickup_requests_status_created
+  ON pickup_requests(status, created_at DESC);
+
+-- notifications: lista por usuario y orden por fecha (paginacion cursor)
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created
+  ON notifications(user_id, created_at DESC);
+
+-- notifications: contador de no leidas
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
+  ON notifications(user_id) WHERE read = FALSE;
+
+-- audit_events: paginacion cursor en historial
+CREATE INDEX IF NOT EXISTS idx_audit_events_request_created
+  ON audit_events(request_id, created_at DESC);
+
+-- payments: dashboard admin filtrado por status + creado
+CREATE INDEX IF NOT EXISTS idx_payments_status_created
+  ON payments(status, created_at DESC);
+
+-- gps_positions: sondeo del ultimo (user_id, server_ts) cubierto ya por
+-- idx_gps_positions_user_ts; verificar via EXPLAIN ANALYZE post-deploy.
+
 `;
