@@ -1,0 +1,154 @@
+# ============================================================================
+# Hito 5.3.4 — Alert rules (Prometheus / Grafana Cloud)
+# ============================================================================
+# Importar en Grafana Cloud → Alerts → Alert rules → Import.
+# O desplegar con prometheus + alertmanager autohospedado.
+# ============================================================================
+
+groups:
+  # ──────────────────────────────────────────────────────────────────────
+  # SLOs técnicos (latencia, error rate)
+  # ──────────────────────────────────────────────────────────────────────
+  - name: city2cruise-slo
+    interval: 1m
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by (environment) (rate(city2cruise_http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (environment) (rate(city2cruise_http_requests_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: page
+          team: backend
+        annotations:
+          summary: "5xx error rate > 1% en {{ $labels.environment }}"
+          description: "{{ $value | humanizePercentage }} de las peticiones devuelven 5xx (umbral 1%) durante 5 min consecutivos."
+          runbook: "https://github.com/pablete64/APP_TRASNPORTE_LOCKERS_BARCELONA/blob/main/docs/runbooks/DR_RUNBOOK.md#1-postgres-corrupto--borrado-masivo-accidental"
+
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (environment, le) (rate(city2cruise_http_request_duration_seconds_bucket[5m]))
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "p95 latencia > 500ms en {{ $labels.environment }}"
+          description: "p95 = {{ $value | humanizeDuration }} (umbral 500ms) durante 10 min."
+
+      - alert: VeryHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (environment, le) (rate(city2cruise_http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 5m
+        labels:
+          severity: page
+          team: backend
+        annotations:
+          summary: "p95 latencia > 2s en {{ $labels.environment }} — degradación grave"
+
+      - alert: BackendDown
+        expr: up{job="city2cruise-backend"} == 0
+        for: 2m
+        labels:
+          severity: page
+          team: backend
+        annotations:
+          summary: "Backend {{ $labels.instance }} caído >2min"
+
+  # ──────────────────────────────────────────────────────────────────────
+  # KPIs de negocio
+  # ──────────────────────────────────────────────────────────────────────
+  - name: city2cruise-business
+    interval: 1m
+    rules:
+      - alert: NoDriversOnline
+        expr: city2cruise_drivers_online == 0
+        for: 5m
+        labels:
+          severity: page
+          team: ops
+        annotations:
+          summary: "No hay drivers conectados en {{ $labels.environment }} desde hace >5min"
+          description: "Todas las peticiones quedarán en cascada infinita. Revisar app driver / push notifications."
+
+      - alert: SlowMatchTime
+        expr: |
+          histogram_quantile(0.95,
+            sum by (environment, le) (rate(city2cruise_request_match_seconds_bucket[15m]))
+          ) > 120
+        for: 15m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "p95 tiempo de match > 2min en {{ $labels.environment }}"
+          description: "Los pasajeros esperan demasiado para que un driver acepte. Posible falta de oferta o bug en cascada."
+
+      - alert: RequestCompletionRateLow
+        expr: |
+          (
+            sum by (environment) (rate(city2cruise_requests_completed_total[1h]))
+            /
+            sum by (environment) (rate(city2cruise_requests_created_total[1h]))
+          ) < 0.7
+        for: 30m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "Tasa de completion < 70% en {{ $labels.environment }} (1h)"
+          description: "Solo {{ $value | humanizePercentage }} de los requests creados se completan. Investigar abandono."
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Recursos del runtime
+  # ──────────────────────────────────────────────────────────────────────
+  - name: city2cruise-runtime
+    interval: 1m
+    rules:
+      - alert: HighMemoryUsage
+        expr: city2cruise_process_resident_memory_bytes / 1024 / 1024 > 200
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Backend usando > 200MB RAM en {{ $labels.environment }}"
+          description: "RSS = {{ $value }} MB. La VM Fly shared-cpu-1x tiene 256MB."
+
+      - alert: EventLoopLagP99High
+        expr: |
+          histogram_quantile(0.99,
+            sum by (environment, le) (rate(city2cruise_nodejs_eventloop_lag_seconds_bucket[5m]))
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Event loop lag p99 > 100ms en {{ $labels.environment }}"
+          description: "Hay trabajo síncrono pesado bloqueando el event loop."
+
+  # ──────────────────────────────────────────────────────────────────────
+  # CI/CD y backups
+  # ──────────────────────────────────────────────────────────────────────
+  - name: city2cruise-ci
+    interval: 5m
+    rules:
+      - alert: BackupFailedToday
+        # Métrica externa: GitHub Actions → Pushgateway o exporter
+        # Si no hay infra, esta alerta vive sólo en el job backup.yml (Slack notify on failure)
+        expr: time() - city2cruise_backup_last_success_timestamp > 86400
+        for: 0m
+        labels:
+          severity: page
+          team: ops
+        annotations:
+          summary: "Backup Neon no se ha completado en >24h"
+          description: "El cron diario `backup.yml` no ejecutó con éxito ayer. RPO comprometido."
