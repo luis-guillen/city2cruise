@@ -8,6 +8,7 @@ import { ServiceError } from '../utils/errors';
 import { encryptField, decryptField } from '../utils/crypto';
 import { notifyDepositReady, notifyRequestAssigned } from './NotificationService';
 import { config } from '../config/env';
+import { requestsCreatedTotal, requestsCompletedTotal, requestsFailedTotal, requestMatchSeconds } from '../observability/metrics';
 
 const MAX_HANDSHAKE_ATTEMPTS = 3;
 
@@ -81,6 +82,9 @@ export async function createRequest(
     logger.info({ requestId: dto.id, client: params.userName, locker: locker.label }, 'Request created with reserved locker');
     
     await logAuditEvent({ requestId: dto.id, eventType: 'REQUESTED', actorId: params.userId });
+
+    // Hito 5.3.3 — métrica business: request creada
+    requestsCreatedTotal.inc({ locker_id: String(locker.id) });
 
     const safeDto = sanitizeForSocket(dto);
     startCascadeSearch(dto.id, params.userId, safeDto);
@@ -184,6 +188,14 @@ export async function acceptRequest(
 
     // Notify client: conductor en camino (fire-and-forget)
     notifyRequestAssigned(dto.clientId).catch(() => {});
+
+    // Hito 5.3.3 — métrica business: tiempo desde request hasta acept
+    if (row.created_at) {
+        const matchMs = Date.now() - new Date(row.created_at).getTime();
+        if (matchMs >= 0 && matchMs < 86_400_000) {
+            requestMatchSeconds.observe(matchMs / 1000);
+        }
+    }
 
     return { dto, handshakeCode };
 }
@@ -422,6 +434,9 @@ export async function depositRequest(
 
     logger.info({ requestId, locker: resultData.lockerLabel }, 'Request deposited');
     await logAuditEvent({ requestId: Number(requestId), eventType: 'DEPOSITED', actorId: driverId });
+
+    // Hito 5.3.3 — métrica business: request completada con depósito en locker
+    requestsCompletedTotal.inc();
 
     // Notify client: locker ready with PIN (fire-and-forget)
     notifyDepositReady(resultData.clientId, resultData.lockerLabel, resultData.lockerCode).catch(() => {});
