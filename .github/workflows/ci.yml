@@ -103,7 +103,7 @@ jobs:
       - name: Type check (tsc --noEmit)
         run: npx tsc --noEmit
       - name: Tests (jest, sin DB)
-        run: npm test -- src/__tests__/cluster.test.ts src/__tests__/cache.test.ts src/__tests__/cursor-pagination.test.ts src/__tests__/compression-etag.test.ts src/__tests__/metrics.test.ts src/__tests__/health.test.ts src/__tests__/twin-sync.test.ts
+        run: npm test -- src/__tests__/cluster.test.ts src/__tests__/cache.test.ts src/__tests__/cursor-pagination.test.ts src/__tests__/compression-etag.test.ts src/__tests__/metrics.test.ts src/__tests__/health.test.ts src/__tests__/twin-sync.test.ts src/__tests__/rbac.test.ts src/__tests__/rate-limiter.test.ts
       - name: Tests (jest, con DB) - non-blocking
         run: npm test
         continue-on-error: true
@@ -123,14 +123,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: npm audit (frontend) — high+ no production
+      - name: npm audit (frontend) — critical bloquea, high warning
         run: |
           cd cruise-connect-main
-          npm audit --omit=dev --audit-level=high || echo "::warning::npm audit found high vulnerabilities (non-blocking)"
-      - name: npm audit (backend) — high+ no production
+          # Política Hito 6.3.2: critical bloquea CI; high y moderate emiten warning
+          npm audit --omit=dev --audit-level=critical
+          npm audit --omit=dev --audit-level=high || echo "::warning::npm audit found high vulnerabilities (non-blocking, fix in <30d)"
+      - name: npm audit (backend) — critical bloquea, high warning
         run: |
           cd backend
-          npm audit --omit=dev --audit-level=high || echo "::warning::npm audit found high vulnerabilities (non-blocking)"
+          npm audit --omit=dev --audit-level=critical
+          npm audit --omit=dev --audit-level=high || echo "::warning::npm audit found high vulnerabilities (non-blocking, fix in <30d)"
       - name: Gitleaks (scan repo for hardcoded secrets)
         uses: gitleaks/gitleaks-action@v2
         env:
