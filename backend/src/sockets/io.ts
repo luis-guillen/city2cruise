@@ -1,10 +1,14 @@
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { getRedisPubSub } from "../cache/redis";
 import { Server as HttpServer } from "http";
 import { config } from "../config/env";
 import { verifyToken } from "../auth/jwt";
 import { logger } from "../utils/logger";
 import { db } from "../db/database";
 import { validateAndRecord, GpsValidationResult } from "../services/GpsValidationService";
+import { wsConnections, driversOnline } from "../observability/metrics";
+import { syncDriverStatus } from "../services/twin/TwinSyncService";
 
 let io: Server;
 
@@ -103,6 +107,18 @@ export const initSockets = (httpServer: HttpServer) => {
         }
     });
 
+    // Hito 4.3.2 — Cuando hay Redis, registra el adapter para soportar
+    // multi-instancia (eventos cross-worker via pub/sub).
+    const ps = getRedisPubSub();
+    if (ps) {
+        try {
+            io.adapter(createAdapter(ps.pub, ps.sub));
+            logger.info('socket.io redis adapter active');
+        } catch (e) {
+            logger.warn({ err: (e as Error).message }, 'failed to attach socket.io redis adapter');
+        }
+    }
+
     // JWT Authentication middleware
     io.use((socket, next) => {
         const token = socket.handshake.auth?.token;
@@ -125,6 +141,14 @@ export const initSockets = (httpServer: HttpServer) => {
         const roomName = `user_${user.id}`;
 
         logger.info({ socketId: socket.id, userId: user.id, room: roomName }, 'Socket connected');
+
+        // Hito 5.3.3 — métricas business
+        wsConnections.inc({ namespace: 'default' });
+        if (user.role === 'DRIVER') {
+            driversOnline.set(activeDrivers.size + 1);
+            // Hito 5.4.3 — telemetría al twin
+            syncDriverStatus(user.id, 'available').catch(() => {});
+        }
 
         // Join private user room
         socket.join(roomName);
@@ -249,7 +273,11 @@ export const initSockets = (httpServer: HttpServer) => {
                 activeDrivers.delete(user.id);
                 cachedDriverRoutes.delete(user.id);
                 lastRouteRelayMetaByDriver.delete(user.id);
+                driversOnline.set(activeDrivers.size);
+                // Hito 5.4.3 — telemetría al twin
+                syncDriverStatus(user.id, 'offline').catch(() => {});
             }
+            wsConnections.dec({ namespace: 'default' });
             logger.info({ socketId: socket.id, userId: user.id }, 'Socket disconnected');
         });
     });

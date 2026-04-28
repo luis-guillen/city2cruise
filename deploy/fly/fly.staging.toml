@@ -1,0 +1,48 @@
+# Hito 5.1.2 — Fly.io staging app config
+# Despliegue: flyctl deploy --config deploy/fly/fly.staging.toml --app city2cruise-backend-staging
+
+app = "city2cruise-backend-staging"
+primary_region = "mad"  # Madrid: cercano a Las Palmas
+kill_signal = "SIGTERM"
+kill_timeout = 30
+
+[build]
+  dockerfile = "../../backend/Dockerfile"
+
+[env]
+  NODE_ENV = "staging"
+  PORT = "8080"
+  CLUSTER_ENABLED = "0"   # Fly maneja replicas via VMs, no doble-fork
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  auto_stop_machines = true     # apaga maquinas idle (free tier-friendly)
+  auto_start_machines = true
+  min_machines_running = 0      # 0 en staging para ahorrar
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 200
+    soft_limit = 100
+
+  [[services.http_checks]]
+    interval = "10s"
+    grace_period = "30s"
+    method = "get"
+    path = "/api/health"
+    protocol = "http"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory_mb = 256       # free tier

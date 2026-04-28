@@ -1,0 +1,22 @@
+# Prometheus scrape config — pegar en prometheus.yml de Grafana Cloud
+# o del Prometheus self-hosted que apunte a Fly.io.
+#
+# Requiere que /metrics esté accesible. En Fly se expone por una IPv6
+# privada (.internal) o tras autenticación basic auth en el reverse proxy.
+
+scrape_configs:
+  - job_name: city2cruise-backend
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets:
+          - city2cruise-staging-backend.fly.dev:443
+        labels:
+          environment: staging
+      - targets:
+          - city2cruise-production-backend.fly.dev:443
+        labels:
+          environment: production
+    scheme: https
+    # Si /metrics queda público, añade basic auth con METRICS_BASIC_AUTH_TOKEN

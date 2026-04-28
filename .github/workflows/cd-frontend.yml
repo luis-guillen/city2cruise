@@ -1,0 +1,45 @@
+name: CD Frontend (Cloudflare Pages)
+
+on:
+  push:
+    branches: [main]
+    paths: ['cruise-connect-main/**', '.github/workflows/cd-frontend.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  deploy:
+    name: Build & deploy frontend → Cloudflare Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: frontend-production
+      url: https://city2cruise.pages.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: cruise-connect-main/package-lock.json
+      - name: Install
+        working-directory: ./cruise-connect-main
+        run: npm ci --legacy-peer-deps
+      - name: Build prod
+        working-directory: ./cruise-connect-main
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://city2cruise.fly.dev/api' }}
+          VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL || 'https://city2cruise.fly.dev' }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+        run: npm run build
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy cruise-connect-main/dist --project-name=city2cruise --branch=main

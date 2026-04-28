@@ -1,0 +1,96 @@
+# ============================================================================
+# Hito 5.3.4 — Alertmanager routing
+# ============================================================================
+# Para Prometheus self-hosted. Si se usa Grafana Cloud Alerting, replicar
+# este routing en la UI de Contact Points y Notification Policies.
+# ============================================================================
+
+global:
+  resolve_timeout: 5m
+  # Plantilla por defecto Slack. Email vía SMTP de Cloudflare/Mailgun/SES.
+  smtp_from: alerts@city2cruise.com
+  smtp_smarthost: ${SMTP_HOST}:587
+  smtp_auth_username: ${SMTP_USER}
+  smtp_auth_password: ${SMTP_PASSWORD}
+
+route:
+  receiver: slack-default
+  group_by: ['alertname', 'environment']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # PAGE → PagerDuty + Slack #city2cruise-oncall + email
+    - matchers:
+        - severity = page
+      receiver: oncall-page
+      group_wait: 0s
+      continue: true
+
+    # Backend warnings → Slack #backend
+    - matchers:
+        - severity = warning
+        - team = backend
+      receiver: slack-backend
+      continue: false
+
+    # Ops warnings → Slack #ops
+    - matchers:
+        - severity = warning
+        - team = ops
+      receiver: slack-ops
+      continue: false
+
+receivers:
+  - name: slack-default
+    slack_configs:
+      - api_url: ${SLACK_WEBHOOK_URL}
+        channel: '#city2cruise-alerts'
+        send_resolved: true
+        title: '{{ .CommonAnnotations.summary }}'
+        text: |
+          *Severity:* {{ .CommonLabels.severity }}
+          *Env:* {{ .CommonLabels.environment }}
+          *Description:* {{ .CommonAnnotations.description }}
+          {{ if .CommonAnnotations.runbook }}*Runbook:* <{{ .CommonAnnotations.runbook }}|abrir>{{ end }}
+
+  - name: slack-backend
+    slack_configs:
+      - api_url: ${SLACK_WEBHOOK_URL_BACKEND}
+        channel: '#backend'
+        send_resolved: true
+
+  - name: slack-ops
+    slack_configs:
+      - api_url: ${SLACK_WEBHOOK_URL_OPS}
+        channel: '#ops'
+        send_resolved: true
+
+  - name: oncall-page
+    pagerduty_configs:
+      - service_key: ${PAGERDUTY_INTEGRATION_KEY}
+        send_resolved: true
+        severity: critical
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          environment: '{{ .CommonLabels.environment }}'
+          runbook: '{{ .CommonAnnotations.runbook }}'
+    slack_configs:
+      - api_url: ${SLACK_WEBHOOK_URL_ONCALL}
+        channel: '#city2cruise-oncall'
+        send_resolved: true
+        title: '🚨 PAGE: {{ .CommonAnnotations.summary }}'
+    email_configs:
+      - to: oncall@city2cruise.com
+        send_resolved: true
+        headers:
+          Subject: '[PAGE] {{ .CommonAnnotations.summary }}'
+
+inhibit_rules:
+  # Si BackendDown está disparada, suprimir todo lo demás del backend
+  - source_matchers:
+      - alertname = BackendDown
+    target_matchers:
+      - team = backend
+    equal: ['environment']

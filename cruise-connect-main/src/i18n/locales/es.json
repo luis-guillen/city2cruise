@@ -1,0 +1,88 @@
+{
+  "app": {
+    "name": "City2Cruise",
+    "tagline": "Shop & Drop Port Hub"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "close": "Cerrar",
+    "back": "Volver",
+    "next": "Siguiente",
+    "loading": "Cargando…",
+    "retry": "Reintentar",
+    "search": "Buscar",
+    "ok": "Aceptar",
+    "yes": "Sí",
+    "no": "No"
+  },
+  "auth": {
+    "loginTitle": "Iniciar sesión",
+    "registerTitle": "Crear cuenta",
+    "fullName": "Nombre completo",
+    "email": "Email",
+    "password": "Contraseña",
+    "minPassword": "Mínimo 6 caracteres",
+    "accountType": "Tipo de cuenta",
+    "client": "Cliente",
+    "driver": "Conductor",
+    "submitLogin": "Iniciar sesión",
+    "submitRegister": "Crear cuenta",
+    "errorEmpty": "Completa todos los campos",
+    "errorPwd": "La contraseña debe tener al menos 6 caracteres",
+    "errorName": "Introduce tu nombre",
+    "welcome": "Bienvenido, {{name}}",
+    "accountCreated": "Cuenta creada",
+    "authError": "Error de autenticación",
+    "logout": "Salir"
+  },
+  "navbar": {
+    "userActions": "Acciones de usuario",
+    "logoutTitle": "Cerrar sesión",
+    "sessionAs": "Sesión iniciada como {{name}}, rol {{role}}"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "unreadCount": "{{count}} nuevas",
+    "empty": "No tienes notificaciones",
+    "deleteAll": "Borrar todas",
+    "deleted": "Notificaciones borradas",
+    "deleteError": "Error al borrar notificaciones",
+    "ariaButton": "Notificaciones, {{count}} sin leer",
+    "ariaButtonEmpty": "Notificaciones, sin novedades"
+  },
+  "tracking": {
+    "mapAriaLabel": "Mapa de seguimiento del envío",
+    "altTitle": "Seguimiento del envío",
+    "comingForPackage": "{{driver}} viene a por tu paquete",
+    "deliveringPackage": "{{driver}} lleva tu paquete al puerto",
+    "arriving": "¡Llegando!",
+    "distance": "{{km}} km",
+    "etaMin": "Llegada estimada en {{min}} minutos",
+    "showMap": "Ver en mapa"
+  },
+  "a11y": {
+    "menu": "Accesibilidad",
+    "menuTitle": "Opciones de accesibilidad",
+    "profile": "Perfil",
+    "profileStandard": "Estándar",
+    "profileAge": "Avanzado (texto grande)",
+    "profilePmr": "Movilidad reducida",
+    "contrast": "Contraste",
+    "contrastAuto": "Automático",
+    "contrastHigh": "Alto contraste",
+    "reducedMotion": "Reducir animaciones",
+    "language": "Idioma",
+    "languageAria": "Idioma de la aplicación",
+    "skipToContent": "Saltar al contenido principal"
+  },
+  "footer": {
+    "copyright": "© 2026 City2Cruise Las Palmas — Smart Port Logistics"
+  },
+  "pwa": {
+    "updateAvailable": "Hay una versión nueva disponible.",
+    "updateNow": "Actualizar",
+    "later": "Más tarde"
+  }
+}

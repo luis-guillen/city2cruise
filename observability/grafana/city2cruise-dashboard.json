@@ -1,0 +1,126 @@
+{
+  "title": "City2Cruise — Operaciones",
+  "uid": "city2cruise-ops",
+  "schemaVersion": 39,
+  "tags": ["city2cruise", "phase5"],
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [{
+      "name": "env",
+      "type": "custom",
+      "query": "staging,production",
+      "current": { "text": "production", "value": "production" }
+    }]
+  },
+  "panels": [
+    {
+      "title": "Request rate (req/s)",
+      "type": "timeseries",
+      "id": 1,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{
+        "expr": "sum by (status) (rate(city2cruise_http_requests_total{environment=\"$env\"}[1m]))",
+        "legendFormat": "{{status}}"
+      }]
+    },
+    {
+      "title": "Latency p50 / p95 / p99",
+      "type": "timeseries",
+      "id": 2,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(city2cruise_http_request_duration_seconds_bucket{environment=\"$env\"}[5m])))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(city2cruise_http_request_duration_seconds_bucket{environment=\"$env\"}[5m])))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(city2cruise_http_request_duration_seconds_bucket{environment=\"$env\"}[5m])))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "title": "5xx error rate (%)",
+      "type": "stat",
+      "id": 3,
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{
+        "expr": "100 * sum(rate(city2cruise_http_requests_total{status=~\"5..\",environment=\"$env\"}[5m])) / sum(rate(city2cruise_http_requests_total{environment=\"$env\"}[5m]))"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      }
+    },
+    {
+      "title": "Drivers online",
+      "type": "stat",
+      "id": 4,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{ "expr": "city2cruise_drivers_online{environment=\"$env\"}" }]
+    },
+    {
+      "title": "WebSocket connections",
+      "type": "stat",
+      "id": 5,
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{ "expr": "sum(city2cruise_websocket_connections{environment=\"$env\"})" }]
+    },
+    {
+      "title": "Memory RSS (MB)",
+      "type": "stat",
+      "id": 6,
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{ "expr": "city2cruise_process_resident_memory_bytes{environment=\"$env\"} / 1024 / 1024" }],
+      "fieldConfig": { "defaults": { "unit": "decmbytes" } }
+    },
+    {
+      "title": "Requests creadas vs completadas (acumulado 1h)",
+      "type": "timeseries",
+      "id": 7,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [
+        { "expr": "sum(increase(city2cruise_requests_created_total{environment=\"$env\"}[1h]))", "legendFormat": "creadas" },
+        { "expr": "sum(increase(city2cruise_requests_completed_total{environment=\"$env\"}[1h]))", "legendFormat": "completadas" },
+        { "expr": "sum(increase(city2cruise_requests_failed_total{environment=\"$env\"}[1h]))", "legendFormat": "falladas" }
+      ]
+    },
+    {
+      "title": "Tiempo de match (driver acepta) p50/p95",
+      "type": "timeseries",
+      "id": 8,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(city2cruise_request_match_seconds_bucket{environment=\"$env\"}[15m])))", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(city2cruise_request_match_seconds_bucket{environment=\"$env\"}[15m])))", "legendFormat": "p95" }
+      ]
+    },
+    {
+      "title": "DB query duration p95 por op",
+      "type": "timeseries",
+      "id": 9,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum by (le, op) (rate(city2cruise_db_query_duration_seconds_bucket{environment=\"$env\"}[5m])))",
+        "legendFormat": "{{op}}"
+      }]
+    },
+    {
+      "title": "Event loop lag p99",
+      "type": "timeseries",
+      "id": 10,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prom" },
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum by (le) (rate(city2cruise_nodejs_eventloop_lag_seconds_bucket{environment=\"$env\"}[5m])))"
+      }]
+    }
+  ]
+}

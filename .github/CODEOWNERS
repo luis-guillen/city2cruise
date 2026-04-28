@@ -1,0 +1,28 @@
+# Hito 5.1.3 — Code owners.
+# Rutas glob siguen las reglas de .gitignore.
+# Cuando alguien abre un PR que toca un path, los owners son
+# auto-asignados como reviewers.
+
+# Default: el dueno del repo aprueba todo.
+*                              @pablete64
+
+# Areas criticas (requieren atencion adicional)
+/backend/src/auth/             @pablete64
+/backend/src/middleware/       @pablete64
+/backend/src/cache/            @pablete64
+/backend/src/cluster.ts        @pablete64
+/backend/src/db/               @pablete64
+/backend/src/services/         @pablete64
+
+# Frontend a11y / i18n
+/cruise-connect-main/src/i18n/                  @pablete64
+/cruise-connect-main/src/context/AccessibilityContext.tsx @pablete64
+
+# Pipelines y deploy (requieren mucho cuidado)
+/.github/workflows/            @pablete64
+/deploy/                       @pablete64
+/ecosystem.config.cjs          @pablete64
+/docker-compose*.yml           @pablete64
+
+# Docs (cualquiera puede tocar, pero queda registrado)
+/docs/                         @pablete64

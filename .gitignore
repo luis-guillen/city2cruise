@@ -4,3 +4,28 @@ node_modules/
 .idea/
 .vscode/
 *.log
+
+# Hito 5.2.3 — env files reales nunca al repo (sólo *.example)
+envs/*.env
+!envs/*.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+.venv/
+
+# Playwright (Hito 6.2)
+cruise-connect-main/e2e/.results/
+cruise-connect-main/e2e/.report/
+cruise-connect-main/test-results/
+cruise-connect-main/playwright-report/
+
+# Hito 6 — coverage artifacts
+cruise-connect-main/coverage/
+backend/coverage/
+.coverage
+htmlcov/
+
