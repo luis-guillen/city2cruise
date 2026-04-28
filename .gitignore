@@ -22,3 +22,10 @@ cruise-connect-main/e2e/.results/
 cruise-connect-main/e2e/.report/
 cruise-connect-main/test-results/
 cruise-connect-main/playwright-report/
+
+# Hito 6 — coverage artifacts
+cruise-connect-main/coverage/
+backend/coverage/
+.coverage
+htmlcov/
+

@@ -129,4 +129,28 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  test: {
+    // Hito 6 QA — vitest config: excluir tests E2E de Playwright
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/e2e/**",
+    ],
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "json-summary", "html"],
+      reportsDirectory: "./coverage",
+      exclude: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/e2e/**",
+        "**/__tests__/**",
+        "**/*.config.*",
+        "src/main.tsx",
+        "src/i18n/**",
+      ],
+    },
+    environment: "jsdom",
+    setupFiles: ["src/setupTests.ts"],
+  },
 }));
