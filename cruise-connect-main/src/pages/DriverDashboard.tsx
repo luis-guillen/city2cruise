@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { handleAcceptRequest, handleDeposit, handleRenewHandshake } from '@/services/api';
@@ -8,7 +8,7 @@ import { useDemoDriverRoute } from '@/hooks/useDemoDriverRoute';
 import IOSStatusBadge from '@/components/ios/IOSStatusBadge';
 import GlassNavbar from '@/components/ios/GlassNavbar';
 import GlassCard from '@/components/ios/GlassCard';
-import DriverMap from '@/components/DriverMap';
+const DriverMap = lazy(() => import('@/components/DriverMap'));
 import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
 import { NotificationSettings } from '@/components/NotificationSettings';
 import { toast } from 'sonner';
@@ -177,17 +177,23 @@ export default function DriverDashboard() {
           </div>
         </GlassCard>
 
-        {/* Map */}
+        {/* Map — lazy-loaded; Leaflet bundle only fetched when there's something to show */}
         {(pendingRequests.length > 0 || activePickup) && (
           <div className="mb-4 animate-scale-in rounded-[20px] overflow-hidden shadow-lg shadow-black/10">
-            <DriverMap
-              center={mapCenter}
-              radiusKm={3}
-              pendingRequests={pendingRequests}
-              onAccept={(req) => onAccept(req.id)}
-              isLoading={isLoading}
-              activeRequest={activePickup}
-            />
+            <Suspense fallback={
+              <div className="h-[320px] bg-[#E8EEF4] flex items-center justify-center rounded-[20px]">
+                <div className="w-8 h-8 rounded-full border-4 border-[#007AFF]/20 border-t-[#007AFF] animate-spin" />
+              </div>
+            }>
+              <DriverMap
+                center={mapCenter}
+                radiusKm={3}
+                pendingRequests={pendingRequests}
+                onAccept={(req) => onAccept(req.id)}
+                isLoading={isLoading}
+                activeRequest={activePickup}
+              />
+            </Suspense>
           </div>
         )}
 
