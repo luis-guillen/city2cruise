@@ -18,6 +18,20 @@ services:
       retries: 5
       start_period: 10s
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build: ./backend
     ports:
@@ -27,11 +41,14 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
       DATABASE_URL: postgres://cruise:cruise_secret@db:5432/cruise_connect
       FRONTEND_URL: http://localhost:9100
+      REDIS_URL: redis://redis:6379
     volumes:
       - ./backend/src:/app/src
     command: ["npx", "ts-node-dev", "--respawn", "src/index.ts"]
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -53,3 +70,4 @@ services:
 
 volumes:
   pgdata_dev:
+  redisdata_dev:
