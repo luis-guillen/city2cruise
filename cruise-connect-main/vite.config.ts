@@ -54,6 +54,26 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ].filter(Boolean),
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('leaflet') || id.includes('react-leaflet')) return 'leaflet';
+            if (id.includes('recharts')) return 'recharts';
+            if (id.includes('@radix-ui')) return 'radix';
+            if (id.includes('@stripe')) return 'stripe';
+            if (id.includes('react-day-picker') || id.includes('date-fns')) return 'date';
+            if (id.includes('react-router')) return 'router';
+            if (id.includes('@tanstack')) return 'query';
+            if (id.includes('i18next') || id.includes('react-i18next')) return 'i18n';
+            return 'vendor';
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 500,
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
