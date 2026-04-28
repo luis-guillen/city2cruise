@@ -17,7 +17,22 @@ const ClientDashboard = lazy(() => import("@/pages/ClientDashboard"));
 const DriverDashboard = lazy(() => import("@/pages/DriverDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 
-const queryClient = new QueryClient();
+// Hito 4.2.3 — Defaults conservadores. Cada useQuery puede sobreescribir.
+// staleTime corto: la mayoria de datos en una app de logistica en tiempo
+// real envejecen rapido y se invalidan via WebSocket. Para datos casi
+// estaticos (lockers, configuracion) ver src/lib/queryKeys.ts donde se
+// definen las opciones por dominio.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 10 * 1000,
+      gcTime: 5 * 60 * 1000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+    },
+  },
+});
 
 function DashboardFallback() {
   const { t } = useTranslation();
