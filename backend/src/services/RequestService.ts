@@ -9,6 +9,7 @@ import { encryptField, decryptField } from '../utils/crypto';
 import { notifyDepositReady, notifyRequestAssigned } from './NotificationService';
 import { config } from '../config/env';
 import { requestsCreatedTotal, requestsCompletedTotal, requestsFailedTotal, requestMatchSeconds } from '../observability/metrics';
+import { syncRequestCreated, syncRequestAssigned, syncRequestDeposited } from './twin/TwinSyncService';
 
 const MAX_HANDSHAKE_ATTEMPTS = 3;
 
@@ -85,6 +86,9 @@ export async function createRequest(
 
     // Hito 5.3.3 — métrica business: request creada
     requestsCreatedTotal.inc({ locker_id: String(locker.id) });
+
+    // Hito 5.4.3 — telemetría al twin (fire-and-forget)
+    syncRequestCreated(dto.id, params.userId, locker.id).catch(() => {});
 
     const safeDto = sanitizeForSocket(dto);
     startCascadeSearch(dto.id, params.userId, safeDto);
@@ -196,6 +200,9 @@ export async function acceptRequest(
             requestMatchSeconds.observe(matchMs / 1000);
         }
     }
+
+    // Hito 5.4.3 — telemetría al twin
+    syncRequestAssigned(dto.id, driverId).catch(() => {});
 
     return { dto, handshakeCode };
 }
@@ -437,6 +444,9 @@ export async function depositRequest(
 
     // Hito 5.3.3 — métrica business: request completada con depósito en locker
     requestsCompletedTotal.inc();
+
+    // Hito 5.4.3 — telemetría al twin
+    syncRequestDeposited(Number(requestId)).catch(() => {});
 
     // Notify client: locker ready with PIN (fire-and-forget)
     notifyDepositReady(resultData.clientId, resultData.lockerLabel, resultData.lockerCode).catch(() => {});

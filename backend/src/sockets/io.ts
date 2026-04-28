@@ -8,6 +8,7 @@ import { logger } from "../utils/logger";
 import { db } from "../db/database";
 import { validateAndRecord, GpsValidationResult } from "../services/GpsValidationService";
 import { wsConnections, driversOnline } from "../observability/metrics";
+import { syncDriverStatus } from "../services/twin/TwinSyncService";
 
 let io: Server;
 
@@ -145,6 +146,8 @@ export const initSockets = (httpServer: HttpServer) => {
         wsConnections.inc({ namespace: 'default' });
         if (user.role === 'DRIVER') {
             driversOnline.set(activeDrivers.size + 1);
+            // Hito 5.4.3 — telemetría al twin
+            syncDriverStatus(user.id, 'available').catch(() => {});
         }
 
         // Join private user room
@@ -271,6 +274,8 @@ export const initSockets = (httpServer: HttpServer) => {
                 cachedDriverRoutes.delete(user.id);
                 lastRouteRelayMetaByDriver.delete(user.id);
                 driversOnline.set(activeDrivers.size);
+                // Hito 5.4.3 — telemetría al twin
+                syncDriverStatus(user.id, 'offline').catch(() => {});
             }
             wsConnections.dec({ namespace: 'default' });
             logger.info({ socketId: socket.id, userId: user.id }, 'Socket disconnected');
