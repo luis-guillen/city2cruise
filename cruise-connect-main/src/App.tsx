@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 const ClientDashboard = lazy(() => import("@/pages/ClientDashboard"));
 const DriverDashboard = lazy(() => import("@/pages/DriverDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const ControlTowerPage = lazy(() => import("@/pages/ControlTowerPage"));
 
 // Hito 4.2.3 — Defaults conservadores. Cada useQuery puede sobreescribir.
 // staleTime corto: la mayoria de datos en una app de logistica en tiempo
@@ -85,6 +86,16 @@ const App = () => (
                   <ProtectedRoute allowedRoles={["ADMIN"]}>
                     <Suspense fallback={<DashboardFallback />}>
                       <AdminDashboard />
+                    </Suspense>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/control-tower"
+                element={
+                  <ProtectedRoute allowedRoles={["ADMIN"]}>
+                    <Suspense fallback={<DashboardFallback />}>
+                      <ControlTowerPage />
                     </Suspense>
                   </ProtectedRoute>
                 }
