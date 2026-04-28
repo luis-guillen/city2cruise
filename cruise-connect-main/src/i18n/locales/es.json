@@ -79,5 +79,10 @@
   },
   "footer": {
     "copyright": "© 2026 City2Cruise Las Palmas — Smart Port Logistics"
+  },
+  "pwa": {
+    "updateAvailable": "Hay una versión nueva disponible.",
+    "updateNow": "Actualizar",
+    "later": "Más tarde"
   }
 }
