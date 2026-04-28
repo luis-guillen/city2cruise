@@ -2,6 +2,7 @@ import { db } from '../db/database';
 import { config } from '../config/env';
 import { getActiveDrivers, emitToSocket, emitToUser, updateActiveDriverLocation } from '../sockets/io';
 import { logger } from '../utils/logger';
+import { getRLDriverRanking, applyRLRanking } from './RLDispatchService';
 
 interface CascadeEntry {
     timeouts: NodeJS.Timeout[];
@@ -53,22 +54,30 @@ async function notifyDriversInRadius(
     const nearbyDriverIds = new Set(nearbyDrivers.map((r: any) => r.id as number));
     const distanceMap = new Map(nearbyDrivers.map((r: any) => [r.id as number, r.distance_km as number]));
 
-    // Cruzar con drivers conectados por socket
-    for (const driver of drivers) {
-        if (alreadyNotified.has(driver.userId)) continue;
+    // Filter eligible candidates (in radius or no GPS yet)
+    const eligible = drivers.filter(d => {
+        if (alreadyNotified.has(d.userId)) return false;
+        const inRadius = nearbyDriverIds.has(d.userId);
+        const noGps = d.lat === 0 && d.lon === 0;
+        return inRadius || noGps;
+    });
 
-        const inRadius = nearbyDriverIds.has(driver.userId);
-        // Fallback: driver sin ubicación aún (lat/lon = 0,0) → notificar igualmente para demo
-        const noGps = driver.lat === 0 && driver.lon === 0;
+    // Apply RL ranking (no-op when RL is disabled or service is down)
+    const rlRankings = await getRLDriverRanking();
+    const rankedIds = applyRLRanking(eligible.map(d => d.userId), rlRankings);
+    const driverById = new Map(eligible.map(d => [d.userId, d]));
 
-        if (!inRadius && !noGps) continue;
+    for (const userId of rankedIds) {
+        const driver = driverById.get(userId);
+        if (!driver) continue;
 
         emitToSocket(driver.socketId, 'new:pickup:request', safeDto);
         newly.add(driver.userId);
         const dist = distanceMap.get(driver.userId) ?? 0;
+        const inRadius = nearbyDriverIds.has(driver.userId);
         console.log(`[CASCADE] Notificando a Driver ${driver.userId} (Socket: ${driver.socketId}) a ${dist.toFixed(2)}km`);
         logger.info(
-            { requestId, driverId: driver.userId, distKm: parseFloat(dist.toFixed(2)), radiusKm, mode: inRadius ? 'geo' : 'no-gps-fallback' },
+            { requestId, driverId: driver.userId, distKm: parseFloat(dist.toFixed(2)), radiusKm, mode: inRadius ? 'geo' : 'no-gps-fallback', rlRanked: rlRankings.length > 0 },
             'CASCADE driver notified'
         );
     }

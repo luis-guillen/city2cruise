@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { config } from './config/env';
 import apiRouter from './routes';
@@ -12,7 +13,10 @@ import { globalLimiter } from './middleware/rateLimiter';
 export const buildServer = (): Express => {
     const app = express();
 
-    // 1. Cabeceras de seguridad HTTP (Helmet)
+    // 1. Compresión gzip/brotli de respuestas JSON (antes de cualquier ruta)
+    app.use(compression());
+
+    // 2. Cabeceras de seguridad HTTP (Helmet)
     app.use(helmet({
         // HSTS: 1 año, incluir subdomains
         hsts: {
@@ -40,10 +44,10 @@ export const buildServer = (): Express => {
         xssFilter: true,
     }));
 
-    // 2. Cookie parser (necesario para refresh token HttpOnly)
+    // 3. Cookie parser (necesario para refresh token HttpOnly)
     app.use(cookieParser());
 
-    // 3. CORS
+    // 4. CORS
     const allowedOrigins = [config.frontendUrl, 'http://localhost:9100', 'http://localhost:9101', 'http://localhost:9102', 'http://localhost:9103'];
     app.use(cors({
         origin: (origin, callback) => {
@@ -62,7 +66,7 @@ export const buildServer = (): Express => {
         credentials: true
     }));
 
-    // 4. Rate Limiter Global
+    // 5. Rate Limiter Global
     app.use(globalLimiter);
 
     // 5a. Webhook de Stripe — necesita body RAW antes de que express.json lo parsee

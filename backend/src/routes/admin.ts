@@ -5,6 +5,7 @@ import { authMiddleware, requireRole } from '../auth/middleware';
 import { sendError } from '../utils/errors';
 import { getAuditTrail } from '../services/AuditService';
 import { getActiveDrivers } from '../sockets/io';
+import { withCache } from '../cache/cache';
 
 const adminRouter = Router();
 
@@ -86,47 +87,51 @@ adminRouter.delete('/users/:id', authMiddleware, requireRole('ADMIN'), async (re
 // ── GET /admin/metrics/throughput ────────────────────────────────────────────
 adminRouter.get('/metrics/throughput', authMiddleware, requireRole('ADMIN'), async (req, res) => {
     try {
-        const { rows: [{ n: total_requests }] } = await db.query('SELECT COUNT(*)::int as n FROM pickup_requests');
+        const data = await withCache('admin:metrics:throughput', 30, async () => {
+            const { rows: [{ n: total_requests }] } = await db.query('SELECT COUNT(*)::int as n FROM pickup_requests');
 
-        const { rows: statusRows } = await db.query(`
-            SELECT status, COUNT(*)::int as n FROM pickup_requests GROUP BY status
-        `);
-        const by_status: Record<string, number> = {
-            REQUESTED: 0, CONFIRMATION_PENDING: 0, IN_PROGRESS: 0, DEPOSITED: 0, PICKED_UP: 0
-        };
-        for (const row of statusRows) {
-            if (row.status in by_status) by_status[row.status] = row.n;
-        }
+            const { rows: statusRows } = await db.query(`
+                SELECT status, COUNT(*)::int as n FROM pickup_requests GROUP BY status
+            `);
+            const by_status: Record<string, number> = {
+                REQUESTED: 0, CONFIRMATION_PENDING: 0, IN_PROGRESS: 0, DEPOSITED: 0, PICKED_UP: 0
+            };
+            for (const row of statusRows) {
+                if (row.status in by_status) by_status[row.status] = row.n;
+            }
 
-        const { rows: [lockerStats] } = await db.query(`
-            SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE is_occupied = TRUE)::int as occupied FROM lockers
-        `);
-        const lockers_total     = lockerStats.total;
-        const lockers_occupied  = lockerStats.occupied ?? 0;
-        const lockers_available = lockers_total - lockers_occupied;
-        const occupancy_rate    = lockers_total > 0
-            ? Math.round((lockers_occupied / lockers_total) * 100 * 100) / 100
-            : 0;
+            const { rows: [lockerStats] } = await db.query(`
+                SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE is_occupied = TRUE)::int as occupied FROM lockers
+            `);
+            const lockers_total     = lockerStats.total;
+            const lockers_occupied  = lockerStats.occupied ?? 0;
+            const lockers_available = lockers_total - lockers_occupied;
+            const occupancy_rate    = lockers_total > 0
+                ? Math.round((lockers_occupied / lockers_total) * 100 * 100) / 100
+                : 0;
 
-        const { rows: [rotationRow] } = await db.query(`
-            SELECT AVG(usage_count)::float as avg FROM (
-                SELECT locker_id, COUNT(*) as usage_count
-                FROM pickup_requests
-                WHERE locker_id IS NOT NULL AND updated_at::date = CURRENT_DATE
-                GROUP BY locker_id
-            ) sub
-        `);
-        const avg_rotation_today = rotationRow.avg ?? 0;
+            const { rows: [rotationRow] } = await db.query(`
+                SELECT AVG(usage_count)::float as avg FROM (
+                    SELECT locker_id, COUNT(*) as usage_count
+                    FROM pickup_requests
+                    WHERE locker_id IS NOT NULL AND updated_at::date = CURRENT_DATE
+                    GROUP BY locker_id
+                ) sub
+            `);
+            const avg_rotation_today = rotationRow.avg ?? 0;
 
-        res.json({
-            total_requests,
-            by_status,
-            lockers_total,
-            lockers_occupied,
-            lockers_available,
-            occupancy_rate,
-            avg_rotation_today
+            return {
+                total_requests,
+                by_status,
+                lockers_total,
+                lockers_occupied,
+                lockers_available,
+                occupancy_rate,
+                avg_rotation_today,
+            };
         });
+
+        res.json(data);
     } catch (error) {
         console.error('[ADMIN] metrics/throughput error:', error);
         sendError(res, 500, 'INTERNAL_ERROR', 'Error calculando métricas de throughput');
@@ -136,44 +141,48 @@ adminRouter.get('/metrics/throughput', authMiddleware, requireRole('ADMIN'), asy
 // ── GET /admin/metrics/timing ─────────────────────────────────────────────────
 adminRouter.get('/metrics/timing', authMiddleware, requireRole('ADMIN'), async (req, res) => {
     try {
-        const { rows: [avgAssignment] } = await db.query(`
-            SELECT AVG(EXTRACT(EPOCH FROM (a.created_at::timestamptz - r.created_at::timestamptz)))::float as avg_secs
-            FROM audit_events a
-            JOIN audit_events r ON a.request_id = r.request_id
-            WHERE a.event_type = 'ASSIGNED' AND r.event_type = 'REQUESTED'
-        `);
-
-        const { rows: [avgDelivery] } = await db.query(`
-            SELECT AVG(EXTRACT(EPOCH FROM (d.created_at::timestamptz - a.created_at::timestamptz)))::float as avg_secs
-            FROM audit_events d
-            JOIN audit_events a ON d.request_id = a.request_id
-            WHERE d.event_type = 'DEPOSITED' AND a.event_type = 'ASSIGNED'
-        `);
-
-        const { rows: [avgTotal] } = await db.query(`
-            SELECT AVG(EXTRACT(EPOCH FROM (p.created_at::timestamptz - r.created_at::timestamptz)))::float as avg_secs
-            FROM audit_events p
-            JOIN audit_events r ON p.request_id = r.request_id
-            WHERE p.event_type = 'PICKED_UP' AND r.event_type = 'REQUESTED'
-        `);
-
-        const { rows: [{ n: requests_today }] } = await db.query(`
-            SELECT COUNT(*)::int as n FROM pickup_requests WHERE created_at::date = CURRENT_DATE
-        `);
-
-        const { rows: [{ n: requests_this_week }] } = await db.query(`
-            SELECT COUNT(*)::int as n FROM pickup_requests WHERE created_at >= NOW() - INTERVAL '7 days'
-        `);
-
         const round2 = (v: number | null) => v != null ? Math.round(v * 100) / 100 : null;
 
-        res.json({
-            avg_assignment_time_seconds: round2(avgAssignment.avg_secs),
-            avg_delivery_time_seconds:   round2(avgDelivery.avg_secs),
-            avg_total_time_seconds:      round2(avgTotal.avg_secs),
-            requests_today,
-            requests_this_week
+        const data = await withCache('admin:metrics:timing', 60, async () => {
+            const { rows: [avgAssignment] } = await db.query(`
+                SELECT AVG(EXTRACT(EPOCH FROM (a.created_at::timestamptz - r.created_at::timestamptz)))::float as avg_secs
+                FROM audit_events a
+                JOIN audit_events r ON a.request_id = r.request_id
+                WHERE a.event_type = 'ASSIGNED' AND r.event_type = 'REQUESTED'
+            `);
+
+            const { rows: [avgDelivery] } = await db.query(`
+                SELECT AVG(EXTRACT(EPOCH FROM (d.created_at::timestamptz - a.created_at::timestamptz)))::float as avg_secs
+                FROM audit_events d
+                JOIN audit_events a ON d.request_id = a.request_id
+                WHERE d.event_type = 'DEPOSITED' AND a.event_type = 'ASSIGNED'
+            `);
+
+            const { rows: [avgTotal] } = await db.query(`
+                SELECT AVG(EXTRACT(EPOCH FROM (p.created_at::timestamptz - r.created_at::timestamptz)))::float as avg_secs
+                FROM audit_events p
+                JOIN audit_events r ON p.request_id = r.request_id
+                WHERE p.event_type = 'PICKED_UP' AND r.event_type = 'REQUESTED'
+            `);
+
+            const { rows: [{ n: requests_today }] } = await db.query(`
+                SELECT COUNT(*)::int as n FROM pickup_requests WHERE created_at::date = CURRENT_DATE
+            `);
+
+            const { rows: [{ n: requests_this_week }] } = await db.query(`
+                SELECT COUNT(*)::int as n FROM pickup_requests WHERE created_at >= NOW() - INTERVAL '7 days'
+            `);
+
+            return {
+                avg_assignment_time_seconds: round2(avgAssignment.avg_secs),
+                avg_delivery_time_seconds:   round2(avgDelivery.avg_secs),
+                avg_total_time_seconds:      round2(avgTotal.avg_secs),
+                requests_today,
+                requests_this_week,
+            };
         });
+
+        res.json(data);
     } catch (error) {
         console.error('[ADMIN] metrics/timing error:', error);
         sendError(res, 500, 'INTERNAL_ERROR', 'Error calculando métricas de timing');

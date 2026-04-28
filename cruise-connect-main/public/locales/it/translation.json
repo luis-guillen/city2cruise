@@ -1,0 +1,72 @@
+{
+  "common": {
+    "loading": "Caricamento...",
+    "error": "Si è verificato un errore",
+    "confirm": "Conferma",
+    "cancel": "Annulla",
+    "save": "Salva",
+    "close": "Chiudi",
+    "back": "Indietro",
+    "next": "Avanti",
+    "logout": "Disconnetti"
+  },
+  "auth": {
+    "login": "Accedi",
+    "email": "Indirizzo e-mail",
+    "password": "Password",
+    "loginButton": "Accedi",
+    "logoutConfirm": "Vuoi disconnetterti?"
+  },
+  "nav": {
+    "home": "Home",
+    "profile": "Profilo",
+    "requests": "Richieste",
+    "history": "Cronologia"
+  },
+  "request": {
+    "new": "Nuova richiesta",
+    "status": {
+      "REQUESTED": "Ricerca autista",
+      "ACCEPTED": "Autista assegnato",
+      "IN_PROGRESS": "In viaggio",
+      "COMPLETED": "Completato",
+      "CANCELLED": "Annullato"
+    },
+    "pickup": "Punto di ritiro",
+    "dropoff": "Destinazione",
+    "estimatedTime": "Tempo stimato"
+  },
+  "payment": {
+    "title": "Pagamento sicuro",
+    "cardNumber": "Numero di carta",
+    "expiry": "Scadenza",
+    "cvc": "CVC",
+    "pay": "Paga {{amount}}",
+    "processing": "Elaborazione in corso...",
+    "success": "Pagamento riuscito",
+    "error": "Pagamento fallito"
+  },
+  "notifications": {
+    "title": "Notifiche",
+    "enable": "Attiva notifiche",
+    "disable": "Disattiva notifiche",
+    "requestAccepted": "Il tuo autista è in arrivo!",
+    "requestCompleted": "Viaggio completato"
+  },
+  "accessibility": {
+    "skipToContent": "Vai al contenuto principale",
+    "openMenu": "Apri menu",
+    "closeMenu": "Chiudi menu",
+    "increaseFontSize": "Aumenta dimensione font",
+    "highContrast": "Alto contrasto"
+  },
+  "locker": {
+    "title": "Armadietto",
+    "open": "Apri armadietto",
+    "status": {
+      "ONLINE": "Disponibile",
+      "OFFLINE": "Non disponibile",
+      "OUT_OF_SERVICE": "Fuori servizio"
+    }
+  }
+}

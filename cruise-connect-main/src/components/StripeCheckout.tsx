@@ -6,10 +6,12 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
+import { useTranslation } from 'react-i18next';
 import { createPaymentIntent, confirmPayment } from '@/services/api';
 import GlassCard from '@/components/ios/GlassCard';
 import { CreditCard, ShieldCheck, Package, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAccessibility } from '@/hooks/useAccessibility';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || '');
 
@@ -71,6 +73,8 @@ function CheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, on
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const { t } = useTranslation();
+  const { cls } = useAccessibility();
 
   const amountEuros = (amountCents / 100).toFixed(2);
 
@@ -89,7 +93,7 @@ function CheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, on
       });
 
       if (stripeError) {
-        setErrorMsg(stripeError.message ?? 'Error al procesar el pago');
+        setErrorMsg(stripeError.message ?? t('payment.error'));
         setIsProcessing(false);
         return;
       }
@@ -97,27 +101,27 @@ function CheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, on
       // Notify backend that Stripe Elements confirmed authorization
       await confirmPayment(requestId, paymentIntentId);
 
-      toast.success('Pago autorizado correctamente');
+      toast.success(t('payment.success'));
       onSuccess();
     } catch {
-      setErrorMsg('No se pudo procesar el pago. Inténtalo de nuevo.');
+      setErrorMsg(t('payment.error'));
       setIsProcessing(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className={`${cls.section}`}>
       {/* Order summary */}
       <div className="bg-black/[0.03] rounded-[14px] p-4 border border-black/[0.06]">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-8 h-8 rounded-[10px] bg-[var(--ios-blue)]/10 flex items-center justify-center">
-            <Package className="w-4 h-4 text-[var(--ios-blue)]" />
+            <Package className="w-4 h-4 text-[var(--ios-blue)]" aria-hidden="true" />
           </div>
           <div>
-            <p className="text-[13px] font-semibold text-[var(--ios-text-primary)]">
-              Envío {PACKAGE_LABELS[packageSize] || packageSize}
+            <p className={`font-semibold text-[var(--ios-text-primary)] ${cls.label}`}>
+              {PACKAGE_LABELS[packageSize] || packageSize}
             </p>
-            <p className="text-[12px] text-[var(--ios-text-secondary)]">City2Cruise Shop&Drop</p>
+            <p className="text-[12px] text-[var(--ios-text-secondary)]">City2Cruise Shop&amp;Drop</p>
           </div>
           <div className="ml-auto text-right">
             <p className="text-[18px] font-bold text-[var(--ios-blue)]">{amountEuros} €</p>
@@ -126,7 +130,7 @@ function CheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, on
         </div>
 
         <div className="flex items-center gap-2 text-[12px] text-[var(--ios-text-tertiary)]">
-          <ShieldCheck className="w-3.5 h-3.5 text-[var(--ios-green)] flex-shrink-0" />
+          <ShieldCheck className="w-3.5 h-3.5 text-[var(--ios-green)] flex-shrink-0" aria-hidden="true" />
           <span>Se captura solo tras la confirmación de entrega</span>
         </div>
       </div>
@@ -134,8 +138,10 @@ function CheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, on
       {/* Stripe Elements Payment Form */}
       <div className="rounded-[14px] overflow-hidden border border-black/[0.06] bg-white/80 backdrop-blur-xl p-4">
         <div className="flex items-center gap-2 mb-3">
-          <CreditCard className="w-4 h-4 text-[var(--ios-text-secondary)]" />
-          <p className="text-[13px] font-medium text-[var(--ios-text-secondary)]">Datos de pago</p>
+          <CreditCard className="w-4 h-4 text-[var(--ios-text-secondary)]" aria-hidden="true" />
+          <p className={`font-medium text-[var(--ios-text-secondary)] ${cls.label}`}>
+            {t('payment.cardNumber')}
+          </p>
         </div>
         <PaymentElement
           options={{
@@ -146,14 +152,17 @@ function CheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, on
       </div>
 
       {errorMsg && (
-        <div className="bg-[var(--ios-red)]/8 border border-[var(--ios-red)]/20 rounded-[12px] px-4 py-3">
+        <div
+          role="alert"
+          className="bg-[var(--ios-red)]/8 border border-[var(--ios-red)]/20 rounded-[12px] px-4 py-3"
+        >
           <p className="text-[13px] text-[var(--ios-red)] font-medium">{errorMsg}</p>
         </div>
       )}
 
       {/* PCI compliance notice */}
       <div className="flex items-start gap-2 px-1">
-        <Lock className="w-3.5 h-3.5 text-[var(--ios-text-tertiary)] flex-shrink-0 mt-0.5" />
+        <Lock className="w-3.5 h-3.5 text-[var(--ios-text-tertiary)] flex-shrink-0 mt-0.5" aria-hidden="true" />
         <p className="text-[11px] text-[var(--ios-text-tertiary)] leading-relaxed">
           Pago gestionado de forma segura por Stripe. Los datos de tu tarjeta nunca tocan nuestros servidores (PCI-DSS).
         </p>
@@ -164,19 +173,22 @@ function CheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, on
           type="button"
           onClick={onCancel}
           disabled={isProcessing}
-          className="flex-1 ios-btn-ghost bg-black/5 disabled:opacity-40"
+          aria-label={t('common.cancel')}
+          className={`flex-1 ios-btn-ghost bg-black/5 disabled:opacity-40 ${cls.btn}`}
         >
-          Cancelar
+          {t('common.cancel')}
         </button>
         <button
           type="submit"
           disabled={!stripe || isProcessing}
-          className="flex-[2] ios-btn-primary ios-btn-lg disabled:opacity-60"
+          aria-label={isProcessing ? t('payment.processing') : t('payment.pay', { amount: `${amountEuros} €` })}
+          aria-busy={isProcessing}
+          className={`flex-[2] ios-btn-primary ios-btn-lg disabled:opacity-60 ${cls.btn}`}
         >
           {isProcessing ? (
-            <span className="ios-spinner border-white/30 border-t-white" />
+            <span className="ios-spinner border-white/30 border-t-white" aria-hidden="true" />
           ) : (
-            `Pagar ${amountEuros} €`
+            t('payment.pay', { amount: `${amountEuros} €` })
           )}
         </button>
       </div>
@@ -198,6 +210,8 @@ export default function StripeCheckout({ requestId, packageSize, onSuccess, onCa
   const [amountCents, setAmountCents] = useState(PACKAGE_PRICES[packageSize] ?? 500);
   const [loadError, setLoadError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const { t } = useTranslation();
+  const { cls } = useAccessibility();
 
   useEffect(() => {
     setIsLoading(true);
@@ -221,9 +235,9 @@ export default function StripeCheckout({ requestId, packageSize, onSuccess, onCa
   if (isLoading) {
     return (
       <GlassCard variant="ultra" className="py-10">
-        <div className="flex flex-col items-center gap-3">
-          <span className="ios-spinner w-8 h-8 border-black/10 border-t-[var(--ios-blue)]" />
-          <p className="ios-caption">Preparando pago seguro…</p>
+        <div className="flex flex-col items-center gap-3" role="status" aria-live="polite">
+          <span className="ios-spinner w-8 h-8 border-black/10 border-t-[var(--ios-blue)]" aria-hidden="true" />
+          <p className="ios-caption">{t('common.loading')}</p>
         </div>
       </GlassCard>
     );
@@ -232,8 +246,10 @@ export default function StripeCheckout({ requestId, packageSize, onSuccess, onCa
   if (loadError) {
     return (
       <GlassCard variant="ultra">
-        <p className="text-[var(--ios-red)] text-center text-[14px] mb-4">{loadError}</p>
-        <button onClick={onCancel} className="ios-btn-ghost w-full">Volver</button>
+        <p role="alert" className="text-[var(--ios-red)] text-center text-[14px] mb-4">{loadError}</p>
+        <button onClick={onCancel} className={`ios-btn-ghost w-full ${cls.btn}`}>
+          {t('common.back')}
+        </button>
       </GlassCard>
     );
   }
@@ -242,11 +258,11 @@ export default function StripeCheckout({ requestId, packageSize, onSuccess, onCa
     <GlassCard variant="ultra" delay={1}>
       <div className="flex items-center gap-3 mb-5">
         <div className="w-10 h-10 rounded-xl bg-[var(--ios-blue)]/10 flex items-center justify-center">
-          <CreditCard className="w-5 h-5 text-[var(--ios-blue)]" />
+          <CreditCard className="w-5 h-5 text-[var(--ios-blue)]" aria-hidden="true" />
         </div>
         <div>
-          <h2 className="ios-title">Confirmar pago</h2>
-          <p className="ios-caption">Elige tu método de pago</p>
+          <h2 className={`ios-title ${cls.text}`}>{t('payment.title')}</h2>
+          <p className="ios-caption">{t('payment.cardNumber')}</p>
         </div>
       </div>
 

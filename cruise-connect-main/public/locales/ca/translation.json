@@ -1,0 +1,72 @@
+{
+  "common": {
+    "loading": "Carregant...",
+    "error": "S'ha produït un error",
+    "confirm": "Confirmar",
+    "cancel": "Cancel·lar",
+    "save": "Desar",
+    "close": "Tancar",
+    "back": "Tornar",
+    "next": "Següent",
+    "logout": "Tancar sessió"
+  },
+  "auth": {
+    "login": "Iniciar sessió",
+    "email": "Adreça electrònica",
+    "password": "Contrasenya",
+    "loginButton": "Entrar",
+    "logoutConfirm": "Vols tancar la sessió?"
+  },
+  "nav": {
+    "home": "Inici",
+    "profile": "Perfil",
+    "requests": "Sol·licituds",
+    "history": "Historial"
+  },
+  "request": {
+    "new": "Nova sol·licitud",
+    "status": {
+      "REQUESTED": "Cercant conductor",
+      "ACCEPTED": "Conductor assignat",
+      "IN_PROGRESS": "En camí",
+      "COMPLETED": "Completat",
+      "CANCELLED": "Cancel·lat"
+    },
+    "pickup": "Punt de recollida",
+    "dropoff": "Destinació",
+    "estimatedTime": "Temps estimat"
+  },
+  "payment": {
+    "title": "Pagament segur",
+    "cardNumber": "Número de targeta",
+    "expiry": "Caducitat",
+    "cvc": "CVC",
+    "pay": "Pagar {{amount}}",
+    "processing": "Processant...",
+    "success": "Pagament realitzat amb èxit",
+    "error": "Error en el pagament"
+  },
+  "notifications": {
+    "title": "Notificacions",
+    "enable": "Activar notificacions",
+    "disable": "Desactivar notificacions",
+    "requestAccepted": "El teu conductor està en camí!",
+    "requestCompleted": "Viatge completat"
+  },
+  "accessibility": {
+    "skipToContent": "Saltar al contingut principal",
+    "openMenu": "Obrir menú",
+    "closeMenu": "Tancar menú",
+    "increaseFontSize": "Augmentar mida de font",
+    "highContrast": "Alt contrast"
+  },
+  "locker": {
+    "title": "Taquilla",
+    "open": "Obrir taquilla",
+    "status": {
+      "ONLINE": "Disponible",
+      "OFFLINE": "No disponible",
+      "OUT_OF_SERVICE": "Fora de servei"
+    }
+  }
+}
