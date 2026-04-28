@@ -7,6 +7,7 @@ import { verifyToken } from "../auth/jwt";
 import { logger } from "../utils/logger";
 import { db } from "../db/database";
 import { validateAndRecord, GpsValidationResult } from "../services/GpsValidationService";
+import { wsConnections, driversOnline } from "../observability/metrics";
 
 let io: Server;
 
@@ -140,6 +141,12 @@ export const initSockets = (httpServer: HttpServer) => {
 
         logger.info({ socketId: socket.id, userId: user.id, room: roomName }, 'Socket connected');
 
+        // Hito 5.3.3 — métricas business
+        wsConnections.inc({ namespace: 'default' });
+        if (user.role === 'DRIVER') {
+            driversOnline.set(activeDrivers.size + 1);
+        }
+
         // Join private user room
         socket.join(roomName);
 
@@ -263,7 +270,9 @@ export const initSockets = (httpServer: HttpServer) => {
                 activeDrivers.delete(user.id);
                 cachedDriverRoutes.delete(user.id);
                 lastRouteRelayMetaByDriver.delete(user.id);
+                driversOnline.set(activeDrivers.size);
             }
+            wsConnections.dec({ namespace: 'default' });
             logger.info({ socketId: socket.id, userId: user.id }, 'Socket disconnected');
         });
     });
