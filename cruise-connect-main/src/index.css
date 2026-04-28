@@ -26,11 +26,22 @@
   --ios-bg-tertiary: #F2F2F7;
   --ios-bg-grouped: #F2F2F7;
 
-  /* Text */
+  /* Text — Hito 4.1.3: tokens AA por defecto.
+       Originales iOS (#8E8E93 / #C7C7CC) fallan WCAG 2.1 AA (2.92 / 1.68).
+       Conservados como --ios-text-secondary-soft / --ios-text-tertiary-soft
+       para uso decorativo (>=18pt o no-texto). */
   --ios-text-primary: #1C1C1E;
-  --ios-text-secondary: #8E8E93;
-  --ios-text-tertiary: #C7C7CC;
-  --ios-text-quaternary: #D1D1D6;
+  --ios-text-secondary: #5C5C61;
+  --ios-text-tertiary: #6E6E73;
+  --ios-text-quaternary: #8E8E93;
+  --ios-text-secondary-soft: #8E8E93;
+  --ios-text-tertiary-soft: #C7C7CC;
+
+  /* Brand AA — versiones con contraste suficiente para texto sobre claro */
+  --ios-blue-aa: #0066CC;
+  --ios-red-aa: #D70015;
+  --ios-orange-aa: #995700;
+  --ios-green-aa: #1F8B3D;
 
   /* Separators */
   --ios-separator: rgba(60, 60, 67, 0.12);
@@ -777,4 +788,56 @@
 /* Hito 4.1.2: tap targets mínimos en perfil estándar (44×44 — WCAG AAA es 44, AA es 24) */
 button, [role="button"], a {
   min-block-size: 24px;
+}
+
+/* ── Hito 4.1.3: Modos de contraste alto ──
+ *
+ * data-a11y-contrast="high" en <html> activa una paleta con contraste mínimo
+ * AAA (texto >= 7:1) y reduce drásticamente el blur del glass para evitar
+ * que texto se camufle con backgrounds variables.
+ */
+:root[data-a11y-contrast="high"] {
+  --ios-text-primary: #000000;
+  --ios-text-secondary: #2A2A2D;
+  --ios-text-tertiary: #424247;
+  --ios-text-quaternary: #5C5C61;
+
+  --ios-blue: #0050A0;       /* AAA en blanco */
+  --ios-blue-aa: #0050A0;
+  --ios-red: #A50012;
+  --ios-red-aa: #A50012;
+  --ios-orange: #7A4500;
+  --ios-orange-aa: #7A4500;
+  --ios-green: #15722E;
+  --ios-green-aa: #15722E;
+
+  --glass-bg: #FFFFFF;
+  --glass-bg-thick: #FFFFFF;
+  --glass-bg-thin: #F2F2F7;
+  --glass-bg-ultra: #FFFFFF;
+  --glass-blur: 0px;
+  --glass-blur-light: 0px;
+  --glass-blur-heavy: 0px;
+  --glass-saturate: 100%;
+  --glass-border: #1C1C1E;
+  --glass-border-subtle: #5C5C61;
+}
+
+:root[data-a11y-contrast="high"] .glass,
+:root[data-a11y-contrast="high"] .glass-thick,
+:root[data-a11y-contrast="high"] .glass-thin,
+:root[data-a11y-contrast="high"] .glass-ultra {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-width: 1px;
+}
+
+/* Modo respuesta del sistema: prefers-contrast: more (Safari/Firefox) */
+@media (prefers-contrast: more) {
+  :root:not([data-a11y-contrast="off"]) {
+    --ios-text-secondary: #2A2A2D;
+    --ios-text-tertiary: #424247;
+    --glass-bg: rgba(255, 255, 255, 0.97);
+    --glass-bg-thick: rgba(255, 255, 255, 0.99);
+  }
 }
