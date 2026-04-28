@@ -190,3 +190,19 @@ jobs:
         working-directory: .
         run: python -m pytest digital_twin/tests/ -v
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # rl_service — twin bridge tests (Hito 5.4.2)
+  # ──────────────────────────────────────────────────────────────────────────
+  rl-service-bridge:
+    name: rl_service twin bridge (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install minimal deps (only what twin_bridge needs)
+        run: pip install httpx pytest pydantic
+      - name: Test twin bridge
+        run: python -m pytest rl_service/tests/test_twin_bridge.py -v
+
