@@ -18,7 +18,11 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
-      registerType: "autoUpdate",
+      // Hito 4.2.5 — Cambiamos a 'prompt' para que el usuario decida cuando
+      // refrescar tras una nueva version (mejor UX que un reload silencioso
+      // que tira la sesion en mitad de un envio).
+      registerType: "prompt",
+      injectRegister: "auto",
       manifest: {
         name: "City2Cruise - Shop&Drop Port Hub",
         short_name: "City2Cruise",
@@ -33,22 +37,60 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         importScripts: ['/sw-push.js'],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: false,
+        navigationPreload: true,
         runtimeCaching: [
+          // 1. API REST → NetworkFirst con timeout (offline fallback al cache)
           {
-            urlPattern: /^https?:\/\/.*\/api\/.*/,
+            urlPattern: ({ url, request }) =>
+              request.method === 'GET' && url.pathname.startsWith('/api/'),
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",
-              networkTimeoutSeconds: 10,
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 100, maxAgeSeconds: 300 },
+              cacheableResponse: { statuses: [0, 200] },
             },
           },
+          // 2. Assets estaticos hashados → CacheFirst (cache larga, 30 dias)
           {
-            urlPattern: /\.(?:js|css|html|woff2?|png|svg|ico)$/,
+            urlPattern: /\.(?:js|css|woff2?|ttf|eot)$/i,
             handler: "CacheFirst",
             options: {
               cacheName: "assets-cache",
-              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 3. Imagenes locales → CacheFirst con LRU
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "images-cache",
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 4. Tiles OSM → CacheFirst de larga duracion (mapa offline parcial)
+          {
+            urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "osm-tiles",
+              expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 5. HTML / navegacion → StaleWhileRevalidate
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "pages-cache",
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 },
             },
           },
         ],

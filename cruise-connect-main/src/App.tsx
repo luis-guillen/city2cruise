@@ -8,6 +8,7 @@ import { AccessibilityProvider } from "@/context/AccessibilityContext";
 import LoginPage from "@/pages/LoginPage";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import PwaUpdatePrompt from "@/components/PwaUpdatePrompt";
 import { useTranslation } from "react-i18next";
 
 // Hito 4.2.1 — Code splitting por rol.
@@ -52,6 +53,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Sonner position="top-center" />
+      <PwaUpdatePrompt />
       <AccessibilityProvider>
         <AppProvider>
           <BrowserRouter>
