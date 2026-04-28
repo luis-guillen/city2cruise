@@ -103,7 +103,7 @@ jobs:
       - name: Type check (tsc --noEmit)
         run: npx tsc --noEmit
       - name: Tests (jest, sin DB)
-        run: npm test -- src/__tests__/cluster.test.ts src/__tests__/cache.test.ts src/__tests__/cursor-pagination.test.ts src/__tests__/compression-etag.test.ts src/__tests__/metrics.test.ts
+        run: npm test -- src/__tests__/cluster.test.ts src/__tests__/cache.test.ts src/__tests__/cursor-pagination.test.ts src/__tests__/compression-etag.test.ts src/__tests__/metrics.test.ts src/__tests__/health.test.ts
       - name: Tests (jest, con DB) - non-blocking
         run: npm test
         continue-on-error: true
