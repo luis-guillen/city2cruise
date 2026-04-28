@@ -1,0 +1,83 @@
+{
+  "app": {
+    "name": "City2Cruise",
+    "tagline": "Shop & Drop Port Hub"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "search": "Search",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "auth": {
+    "loginTitle": "Sign in",
+    "registerTitle": "Create account",
+    "fullName": "Full name",
+    "email": "Email",
+    "password": "Password",
+    "minPassword": "At least 6 characters",
+    "accountType": "Account type",
+    "client": "Client",
+    "driver": "Driver",
+    "submitLogin": "Sign in",
+    "submitRegister": "Create account",
+    "errorEmpty": "Please fill in all fields",
+    "errorPwd": "Password must be at least 6 characters",
+    "errorName": "Enter your name",
+    "welcome": "Welcome, {{name}}",
+    "accountCreated": "Account created",
+    "authError": "Authentication error",
+    "logout": "Sign out"
+  },
+  "navbar": {
+    "userActions": "User actions",
+    "logoutTitle": "Sign out",
+    "sessionAs": "Signed in as {{name}}, role {{role}}"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "unreadCount": "{{count}} new",
+    "empty": "You have no notifications",
+    "deleteAll": "Delete all",
+    "deleted": "Notifications deleted",
+    "deleteError": "Error deleting notifications",
+    "ariaButton": "Notifications, {{count}} unread",
+    "ariaButtonEmpty": "Notifications, nothing new"
+  },
+  "tracking": {
+    "mapAriaLabel": "Shipment tracking map",
+    "altTitle": "Shipment tracking",
+    "comingForPackage": "{{driver}} is coming to pick up your package",
+    "deliveringPackage": "{{driver}} is delivering your package to the port",
+    "arriving": "Arriving!",
+    "distance": "{{km}} km",
+    "etaMin": "Estimated arrival in {{min}} minutes",
+    "showMap": "Show map"
+  },
+  "a11y": {
+    "menu": "Accessibility",
+    "menuTitle": "Accessibility options",
+    "profile": "Profile",
+    "profileStandard": "Standard",
+    "profileAge": "Advanced (large text)",
+    "profilePmr": "Reduced mobility",
+    "contrast": "Contrast",
+    "contrastAuto": "Automatic",
+    "contrastHigh": "High contrast",
+    "reducedMotion": "Reduce animations",
+    "language": "Language",
+    "languageAria": "Application language",
+    "skipToContent": "Skip to main content"
+  },
+  "footer": {
+    "copyright": "© 2026 City2Cruise Las Palmas — Smart Port Logistics"
+  }
+}

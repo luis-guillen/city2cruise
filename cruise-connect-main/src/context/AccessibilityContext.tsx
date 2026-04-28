@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import i18n from '@/i18n';
 
 /**
  * Hito 4.1.4 / 4.1.5 — Accessibility provider.
@@ -116,6 +117,9 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     root.dataset.a11yContrast = contrast === 'high' ? 'high' : 'off';
     root.dataset.a11yReducedMotion = reducedMotion ? '1' : '0';
     root.lang = language;
+    if (i18n.language !== language) {
+      i18n.changeLanguage(language);
+    }
   }, [profile, contrast, reducedMotion, language]);
 
   // Watcher del system reduced-motion

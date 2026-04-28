@@ -1,23 +1,20 @@
 import { Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import Navbar from "@/components/Navbar";
 
 /**
  * Layout principal autenticado.
- *
- * A11y (Hito 4.1.2):
- *  - Skip-link "Saltar al contenido principal" para usuarios de teclado y SR.
- *  - <main id="main"> referenciado por el skip-link.
- *  - <header>/<main>/<footer> son landmarks implícitos.
- *  - Focus visible global definido en index.css (clase .focus-ring).
+ * Hito 4.1.2 (a11y) + Hito 4.1.6 (i18n).
  */
 export default function Layout() {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <a
         href="#main"
         className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[1000] focus-visible:rounded-md focus-visible:bg-foreground focus-visible:px-3 focus-visible:py-2 focus-visible:text-background focus-visible:shadow-lg"
       >
-        Saltar al contenido principal
+        {t("a11y.skipToContent")}
       </a>
       <Navbar />
       <main
@@ -31,7 +28,7 @@ export default function Layout() {
         role="contentinfo"
         className="border-t border-border py-4 text-center text-xs text-muted-foreground"
       >
-        © 2026 City2Cruise Las Palmas — Smart Port Logistics
+        {t("footer.copyright")}
       </footer>
     </div>
   );
