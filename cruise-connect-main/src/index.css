@@ -841,3 +841,93 @@ button, [role="button"], a {
     --glass-bg-thick: rgba(255, 255, 255, 0.99);
   }
 }
+
+/* ── Hito 4.1.4: Perfil age_advanced ──
+ * Aplicado via <html data-a11y-profile="age_advanced">.
+ * Aumenta tipografía base, tap targets, espaciado y suaviza animaciones.
+ */
+:root[data-a11y-profile="age_advanced"] {
+  font-size: 18px;          /* base 18px (default 16) */
+  line-height: 1.65;
+  --ios-radius-sm: 14px;
+  --ios-radius-md: 18px;
+  --ios-radius-lg: 24px;
+  --glass-blur: 24px;       /* menos blur, más legible */
+  --glass-blur-light: 16px;
+  --glass-blur-heavy: 36px;
+}
+
+:root[data-a11y-profile="age_advanced"] body {
+  font-size: 1rem;          /* hereda los 18px del :root */
+}
+
+:root[data-a11y-profile="age_advanced"] button,
+:root[data-a11y-profile="age_advanced"] [role="button"],
+:root[data-a11y-profile="age_advanced"] a,
+:root[data-a11y-profile="age_advanced"] input,
+:root[data-a11y-profile="age_advanced"] select,
+:root[data-a11y-profile="age_advanced"] textarea {
+  min-block-size: 48px;     /* WCAG 2.5.5 AAA */
+  font-size: 1rem;
+}
+
+:root[data-a11y-profile="age_advanced"] .ios-caption,
+:root[data-a11y-profile="age_advanced"] .text-xs {
+  font-size: 0.95rem !important;   /* sube los textos pequeños */
+}
+
+:root[data-a11y-profile="age_advanced"] .text-sm {
+  font-size: 1rem !important;
+}
+
+/* Espaciado más generoso entre acciones para evitar fat-finger errors */
+:root[data-a11y-profile="age_advanced"] .grid {
+  gap: 1rem;
+}
+
+/* Reducir animaciones agresivas */
+:root[data-a11y-profile="age_advanced"] *,
+:root[data-a11y-profile="age_advanced"] *::before,
+:root[data-a11y-profile="age_advanced"] *::after {
+  animation-duration: 0.4s !important;
+}
+
+/* ── Hito 4.1.5: Perfil PMR ──
+ * Aplicado via <html data-a11y-profile="pmr">.
+ * Optimiza para lectores de pantalla y navegación reducida.
+ */
+:root[data-a11y-profile="pmr"] {
+  --ios-radius-sm: 12px;
+  --ios-radius-md: 16px;
+  --ios-radius-lg: 20px;
+}
+
+:root[data-a11y-profile="pmr"] button,
+:root[data-a11y-profile="pmr"] [role="button"],
+:root[data-a11y-profile="pmr"] a {
+  min-block-size: 48px;
+  min-inline-size: 48px;
+}
+
+/* En PMR: por defecto no autoplay de animaciones (parsea como reduced motion) */
+:root[data-a11y-profile="pmr"] *,
+:root[data-a11y-profile="pmr"] *::before,
+:root[data-a11y-profile="pmr"] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.1s !important;
+}
+
+/* Indicador visual fuerte de focus en PMR */
+:root[data-a11y-profile="pmr"] :focus-visible {
+  outline: 3px solid var(--ios-blue, #007AFF);
+  outline-offset: 3px;
+}
+
+/* Forzar reduced-motion via toggle del usuario */
+:root[data-a11y-reduced-motion="1"] *,
+:root[data-a11y-reduced-motion="1"] *::before,
+:root[data-a11y-reduced-motion="1"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

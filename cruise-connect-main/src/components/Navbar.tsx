@@ -2,6 +2,7 @@ import { Package, LogOut } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
 import NotificationBell from "./NotificationBell";
+import AccessibilityMenu from "./AccessibilityMenu";
 
 /**
  * Navbar superior.
@@ -45,6 +46,7 @@ export default function Navbar() {
             className="flex items-center gap-4"
           >
             <NotificationBell />
+            <AccessibilityMenu />
             <span
               className="text-sm text-muted-foreground hidden sm:inline"
               aria-label={`Sesión iniciada como ${userName}, rol ${role}`}
