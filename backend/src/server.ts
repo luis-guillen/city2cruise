@@ -8,6 +8,7 @@ import apiRouter from './routes';
 import debugRouter from './routes/debug';
 import { stripeWebhookHandler } from './routes/payments';
 import { globalErrorHandler } from './utils/errors';
+import * as Sentry from '@sentry/node';
 import { globalLimiter } from './middleware/rateLimiter';
 
 export const buildServer = (): Express => {
@@ -99,6 +100,9 @@ export const buildServer = (): Express => {
     if (process.env.NODE_ENV !== 'production') {
         app.use('/debug', debugRouter);
     }
+
+    // 8a. Sentry error handler (Hito 5.3.1) — captura todo lo que llega aquí
+    Sentry.setupExpressErrorHandler(app);
 
     // 8. Middleware de Manejo de Errores Global (Debe ser el último)
     app.use(globalErrorHandler);

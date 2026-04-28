@@ -19,6 +19,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@sentry/node": "^8.55.2",
     "@socket.io/redis-adapter": "^8.3.0",
     "@types/compression": "^1.8.1",
     "bcrypt": "^6.0.0",

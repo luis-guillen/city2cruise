@@ -1,3 +1,7 @@
+// Hito 5.3.1 — Sentry debe inicializarse ANTES que cualquier otro import
+import { initSentry } from './observability/sentry';
+initSentry();
+
 import http from 'http';
 import { config } from './config/env';
 import { initDB } from './db/database';
