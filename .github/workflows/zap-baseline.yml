@@ -1,0 +1,60 @@
+name: Security — OWASP ZAP Baseline
+
+on:
+  schedule:
+    # Semanal lunes 04:00 UTC
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'URL a escanear (default: staging)'
+        required: false
+        default: 'https://city2cruise-staging-backend.fly.dev'
+      scan_type:
+        description: 'Tipo de scan'
+        required: false
+        default: 'baseline'
+        type: choice
+        options: [baseline, full, api]
+
+permissions:
+  contents: read
+  issues: write   # crea issue automático con findings
+
+jobs:
+  zap-baseline:
+    name: ZAP ${{ github.event.inputs.scan_type || 'baseline' }} scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ZAP baseline scan
+        if: ${{ github.event.inputs.scan_type != 'full' && github.event.inputs.scan_type != 'api' }}
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: ${{ github.event.inputs.target_url || 'https://city2cruise-staging-backend.fly.dev' }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -d'
+          fail_action: false
+          allow_issue_writing: true
+          issue_title: '🚨 OWASP ZAP findings (baseline)'
+
+      - name: Run ZAP full active scan
+        if: ${{ github.event.inputs.scan_type == 'full' }}
+        uses: zaproxy/action-full-scan@v0.10.0
+        with:
+          target: ${{ github.event.inputs.target_url }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -d -T 60'
+          fail_action: false
+          allow_issue_writing: true
+
+      - name: Run ZAP API scan
+        if: ${{ github.event.inputs.scan_type == 'api' }}
+        uses: zaproxy/action-api-scan@v0.9.0
+        with:
+          target: ${{ github.event.inputs.target_url }}/api
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -d -O'
+          fail_action: false
