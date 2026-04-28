@@ -14,7 +14,9 @@
     "db:reset": "cd ../backend && npm run db:reset",
     "dev:backend": "cd ../backend && npm run dev",
     "prestart:all": "lsof -ti :9000,9100,9101,9102 | xargs kill -9 2>/dev/null; echo 'Puertos liberados'",
-    "start:all": "concurrently --kill-others \"npm run dev\" \"npm run dev:backend\""
+    "start:all": "concurrently --kill-others \"npm run dev\" \"npm run dev:backend\"",
+    "test:a11y": "vitest run src/__tests__/a11y",
+    "test:a11y:strict": "A11Y_STRICT=1 vitest run src/__tests__/a11y"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -77,6 +79,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
@@ -86,6 +89,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
+    "axe-core": "^4.11.3",
     "concurrently": "^9.2.1",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -99,7 +103,8 @@
     "typescript-eslint": "^8.38.0",
     "vite": "5.4.21",
     "vite-plugin-pwa": "0.20.5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "vitest-axe": "^0.1.0"
   },
   "overrides": {
     "serialize-javascript": "7.0.5",
