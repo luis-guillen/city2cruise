@@ -88,6 +88,14 @@ export const config = {
         /** How often the sync service polls hardware state, in ms */
         syncIntervalMs: parseInt(process.env.LOCKER_SYNC_INTERVAL_MS || '60000', 10),
     },
+    /** RL routing microservice (Sprint 3.E) */
+    rl: {
+        /** Set RL_ROUTING_ENABLED=true to activate PPO-ranked driver assignment */
+        enabled: process.env.RL_ROUTING_ENABLED === 'true',
+        serviceUrl: process.env.RL_SERVICE_URL || 'http://localhost:8080',
+        /** Max ms to wait for the RL service before falling back to geo-distance */
+        timeoutMs: parseInt(process.env.RL_SERVICE_TIMEOUT_MS || '2000', 10),
+    },
     /** Shared secret for RL microservice → /api/internal/* calls (X-Internal-Key header) */
     internalApiKey: (() => {
         const key = process.env.INTERNAL_API_KEY;
