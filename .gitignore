@@ -8,3 +8,11 @@ node_modules/
 # Hito 5.2.3 — env files reales nunca al repo (sólo *.example)
 envs/*.env
 !envs/*.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+.venv/
