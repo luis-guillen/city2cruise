@@ -1,0 +1,24 @@
+{
+  "name": "city2cruise",
+  "version": "0.0.0-development",
+  "private": true,
+  "description": "City2Cruise - Shop & Drop Port Hub (monorepo)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pablete64/APP_TRASNPORTE_LOCKERS_BARCELONA.git"
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "release": "semantic-release"
+  },
+  "devDependencies": {
+    "semantic-release": "^24.2.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.0",
+    "@semantic-release/commit-analyzer": "^13.0.0",
+    "@semantic-release/release-notes-generator": "^14.0.0",
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0"
+  }
+}
