@@ -3,6 +3,7 @@ import { config } from '../config/env';
 import { getActiveDrivers, emitToSocket, emitToUser, updateActiveDriverLocation } from '../sockets/io';
 import { logger } from '../utils/logger';
 import { getRLDriverRanking, applyRLRanking } from './RLDispatchService';
+import { clearPendingOffers, registerPendingOffers } from './ReassignmentService';
 
 interface CascadeEntry {
     timeouts: NodeJS.Timeout[];
@@ -81,8 +82,14 @@ async function notifyDriversInRadius(
         );
     }
 
+    registerPendingOffers(requestId, [...newly]);
+
     return newly;
 }
+
+export const __testables = {
+    notifyDriversInRadius,
+};
 
 /**
  * Teletransporta conductores de prueba a distancias específicas del punto de recogida.
@@ -136,7 +143,7 @@ export function startCascadeSearch(requestId: number, clientId: number, safeDto:
         emitToUser(clientId, 'request:updated', { id: requestId, phase: phase + 1, radiusKm: radii[phase] || radii[0] });
 
         // Teletransportar drivers solo en la primera fase del primer ciclo
-        if (phase === 0) {
+        if (phase === 0 && safeDto.latitude != null && safeDto.longitude != null) {
             await teleportDemoDrivers(safeDto.latitude, safeDto.longitude);
             // No reseteamos 'notified' aquí para evitar spam, pero sí buscamos en radio 3
         }
@@ -166,4 +173,5 @@ export function cancelCascade(requestId: number): void {
         activeCascades.delete(requestId);
         logger.info({ requestId }, 'CASCADE cancelled (driver accepted)');
     }
+    clearPendingOffers(requestId);
 }

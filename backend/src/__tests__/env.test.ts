@@ -29,6 +29,19 @@ afterEach(() => {
     jest.resetModules();
 });
 
+const loadConfigIsolated = () => {
+    let cfg: any;
+    jest.isolateModules(() => {
+        jest.doMock('dotenv', () => ({
+            __esModule: true,
+            default: { config: jest.fn() },
+            config: jest.fn(),
+        }));
+        cfg = require('../config/env').config;
+    });
+    return cfg;
+};
+
 describe('config/env (Hito H-1.1)', () => {
     test('arroja FATAL en producción si falta VAPID_PRIVATE_KEY', () => {
         setProdSecretsExceptVapid();
@@ -36,9 +49,7 @@ describe('config/env (Hito H-1.1)', () => {
         delete process.env.VAPID_PRIVATE_KEY;
 
         expect(() => {
-            jest.isolateModules(() => {
-                require('../config/env');
-            });
+            loadConfigIsolated();
         }).toThrow(/VAPID_PRIVATE_KEY/);
     });
 
@@ -48,9 +59,7 @@ describe('config/env (Hito H-1.1)', () => {
         delete process.env.VAPID_PUBLIC_KEY;
 
         expect(() => {
-            jest.isolateModules(() => {
-                require('../config/env');
-            });
+            loadConfigIsolated();
         }).toThrow(/VAPID_PUBLIC_KEY/);
     });
 
@@ -61,9 +70,7 @@ describe('config/env (Hito H-1.1)', () => {
 
         let cfg: any;
         expect(() => {
-            jest.isolateModules(() => {
-                cfg = require('../config/env').config;
-            });
+            cfg = loadConfigIsolated();
         }).not.toThrow();
         expect(cfg.vapid.publicKey).toBe('');
         expect(cfg.vapid.privateKey).toBe('');
@@ -74,10 +81,7 @@ describe('config/env (Hito H-1.1)', () => {
         process.env.VAPID_PUBLIC_KEY = 'BPub_test_value';
         process.env.VAPID_PRIVATE_KEY = 'priv_test_value';
 
-        let cfg: any;
-        jest.isolateModules(() => {
-            cfg = require('../config/env').config;
-        });
+        const cfg = loadConfigIsolated();
         expect(cfg.vapid.publicKey).toBe('BPub_test_value');
         expect(cfg.vapid.privateKey).toBe('priv_test_value');
     });
@@ -87,10 +91,7 @@ describe('config/env (Hito H-1.1)', () => {
         delete process.env.VAPID_PUBLIC_KEY;
         delete process.env.VAPID_PRIVATE_KEY;
 
-        let cfg: any;
-        jest.isolateModules(() => {
-            cfg = require('../config/env').config;
-        });
+        const cfg = loadConfigIsolated();
         // Defensa en profundidad: los antiguos fallbacks (auditoría S-01) no
         // deben aparecer ni siquiera en dev. Reconstruimos los prefijos sin
         // literalizarlos para que `grep` sobre el repo siga retornando vacío.

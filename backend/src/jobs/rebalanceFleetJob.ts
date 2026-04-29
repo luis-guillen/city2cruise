@@ -24,6 +24,7 @@ import { logger } from '../utils/logger';
 import { buildStateTensor } from '../services/telemetry/StateFusion';
 import { getRLDriverRanking } from '../services/RLDispatchService';
 import { emitEvent, emitToUser } from '../sockets/io';
+import { reassignRequest } from '../services/ReassignmentService';
 
 const REBALANCE_INTERVAL_MS =
     parseInt(process.env.REBALANCE_INTERVAL_MS || '60000', 10);
@@ -65,6 +66,8 @@ export async function runRebalanceJob(): Promise<void> {
         getRLDriverRanking().catch(() => []),
     ]);
 
+    const now = Date.now();
+
     // Emit rebalance suggestion so admin dashboards / control tower can react
     if (rlRankings.length > 0) {
         emitEvent('dispatch:rebalance:suggested', {
@@ -76,10 +79,23 @@ export async function runRebalanceJob(): Promise<void> {
             { pendingRequests: rows.length, rlDrivers: rlRankings.length },
             '[REBALANCE] RL re-rank emitted',
         );
+
+        if (process.env.RL_REBALANCE_ACTIVE === 'true') {
+            const topCandidateIds = rlRankings.slice(0, 3).map((ranking) => ranking.driverId);
+            for (const req of rows) {
+                const waitMs = now - new Date(req.createdAt).getTime();
+                if (waitMs <= STALE_THRESHOLD_MS) continue;
+                await reassignRequest({
+                    requestId: req.id,
+                    newCandidateIds: topCandidateIds,
+                }).catch((err) =>
+                    logger.error({ err, requestId: req.id }, '[REBALANCE] reassign failed'),
+                );
+            }
+        }
     }
 
     // Notify clients whose requests have been waiting beyond the stale threshold
-    const now = Date.now();
     for (const req of rows) {
         const waitMs = now - new Date(req.createdAt).getTime();
         if (waitMs > STALE_THRESHOLD_MS) {
