@@ -57,7 +57,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 
 ## Capítulo 6 — Cumplimiento (RGPD, Stripe, accesibilidad)
 
-- [ ] H-6.1
+- [x] H-6.1 — Archivar docs históricos (I-03)
 - [ ] H-6.2
 - [ ] H-6.3
 - [ ] H-6.4
