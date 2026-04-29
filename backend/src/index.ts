@@ -33,7 +33,8 @@ const startServer = async () => {
         // 5. Arrancar listener
         server.listen(config.port, '0.0.0.0', () => {
             logger.info({ port: config.port, host: '0.0.0.0' }, 'Server running');
-            logger.info({ url: `http://192.168.1.47:${config.port}/api/health` }, 'Health check');
+            // Hito H-1.5 (S-07): no se incluye IP (la del binding 0.0.0.0 ya está en el log previo).
+            logger.info({ port: config.port, path: '/api/health' }, 'Health check disponible');
         });
 
         // 6. Graceful shutdown
