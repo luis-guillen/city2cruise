@@ -70,8 +70,21 @@ export const config = {
         fromNumber: process.env.TWILIO_FROM_NUMBER || '',
     },
     vapid: {
-        publicKey: process.env.VAPID_PUBLIC_KEY || 'BGscsMyO1ynEmcMgOEYb7GNr0wvkxXi8xq_VxlVOk2QwjSiURUZSJ6-Meeahfu3mxEL4-TaGnoqyAD6Bze-ZQsE',
-        privateKey: process.env.VAPID_PRIVATE_KEY || '0XNrTZGcDO3c8ybvBIQsyrnSFEaSFb4MCHdfvftdAis',
+        // Hito H-1.1 (S-01): fail-fast en producción, sin claves hardcodeadas.
+        publicKey: (() => {
+            const key = process.env.VAPID_PUBLIC_KEY;
+            if (!key && process.env.NODE_ENV === 'production') {
+                throw new Error('FATAL: VAPID_PUBLIC_KEY es obligatorio en producción. Define la variable de entorno (ver scripts/generate-vapid.sh).');
+            }
+            return key || '';
+        })(),
+        privateKey: (() => {
+            const key = process.env.VAPID_PRIVATE_KEY;
+            if (!key && process.env.NODE_ENV === 'production') {
+                throw new Error('FATAL: VAPID_PRIVATE_KEY es obligatorio en producción. Define la variable de entorno (ver scripts/generate-vapid.sh).');
+            }
+            return key || '';
+        })(),
         subject: process.env.VAPID_SUBJECT || 'mailto:admin@city2cruise.com',
     },
     pickupReminderHours: parseInt(process.env.PICKUP_REMINDER_HOURS || '6', 10),
