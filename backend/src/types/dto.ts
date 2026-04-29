@@ -36,6 +36,26 @@ export interface PickupRequestDTO {
     driverLongitude: number | null;
     locker: LockerDTO | null;
     lockerCode: string | null;
+    custodyChallenge?: {
+        id: string;
+        eventType: 'HANDSHAKE_VALIDATED' | 'DEPOSITED' | 'PICKED_UP';
+        canonicalMessage: string;
+        challengeHash: string;
+        previousBlockHash: string | null;
+        payloadDigest: string;
+        requiredSigners: Array<{ actorId: number; role: 'CLIENT' | 'DRIVER' }>;
+        signatures: Array<{ actorId: number; role: 'CLIENT' | 'DRIVER'; signature: string }>;
+        status: 'PENDING' | 'COMMITTED' | 'REVOKED' | 'EXPIRED';
+        expiresAt: string | null;
+        createdAt: string;
+    } | null;
+    custodySummary?: {
+        storageMode: 'PERMISSIONED_CUSTODY_LEDGER';
+        blockHash: string;
+        previousBlockHash: string | null;
+        ledgerHeight: number;
+        quorumProof: Array<{ validatorId: string; committedAt: string; signature: string }>;
+    } | null;
     createdAt: string;
     updatedAt: string;
 }

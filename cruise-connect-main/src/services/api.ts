@@ -58,6 +58,7 @@ api.interceptors.response.use(
       localStorage.setItem('token', newToken);
       if (data.user) {
         localStorage.setItem('userName', data.user.name);
+        localStorage.setItem('userId', String(data.user.id));
         localStorage.setItem('role', data.user.role);
       }
 
@@ -68,6 +69,7 @@ api.interceptors.response.use(
       processQueue(refreshError, null);
       localStorage.removeItem('token');
       localStorage.removeItem('userName');
+      localStorage.removeItem('userId');
       localStorage.removeItem('role');
       localStorage.removeItem('homeCoords');
       window.dispatchEvent(new CustomEvent('auth:logout'));
@@ -96,8 +98,41 @@ export interface PickupRequest {
   locker?: { id: number; label: string } | null;
   lockerCode?: string | null;
   lockerNumber?: string;
+  custodyChallenge?: CustodyChallenge | null;
+  custodySummary?: CustodySummary | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SigningIdentity {
+  algorithm: 'ECDSA_P256_SHA256' | null;
+  status: 'UNREGISTERED' | 'ACTIVE' | 'REVOKED';
+  registeredAt: string | null;
+  rotatedAt: string | null;
+  fingerprint: string | null;
+}
+
+export interface CustodyChallenge {
+  id: string;
+  requestId: number;
+  eventType: 'HANDSHAKE_VALIDATED' | 'DEPOSITED' | 'PICKED_UP';
+  canonicalMessage: string;
+  challengeHash: string;
+  previousBlockHash: string | null;
+  payloadDigest: string;
+  requiredSigners: Array<{ actorId: number; role: 'CLIENT' | 'DRIVER' }>;
+  signatures: Array<{ actorId: number; role: 'CLIENT' | 'DRIVER'; signature: string }>;
+  status: 'PENDING' | 'COMMITTED' | 'REVOKED' | 'EXPIRED';
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface CustodySummary {
+  storageMode: 'PERMISSIONED_CUSTODY_LEDGER';
+  blockHash: string;
+  previousBlockHash: string | null;
+  ledgerHeight: number;
+  quorumProof: Array<{ validatorId: string; committedAt: string; signature: string }>;
 }
 
 export interface NotificationDTO {
@@ -211,7 +246,11 @@ export async function handleAcceptRequest(requestId: string, driverLat?: number,
 
 /** DRIVER: Mark request as deposited in locker */
 export async function handleDeposit(requestId: string): Promise<PickupRequest> {
-  const res = await api.post(`/requests/${requestId}/deposit`, {});
+  throw new Error('Use handleDepositWithChallenge');
+}
+
+export async function handleDepositWithChallenge(requestId: string, challengeId: string): Promise<PickupRequest> {
+  const res = await api.post(`/requests/${requestId}/deposit`, { challengeId });
   return res.data;
 }
 
@@ -223,13 +262,21 @@ export async function handleRenewHandshake(requestId: string): Promise<PickupReq
 
 /** CLIENT: Confirm driver presence using code */
 export async function handleConfirmDriver(requestId: string, handshakeCode: string): Promise<PickupRequest> {
-  const res = await api.post(`/requests/${requestId}/confirm-driver`, { handshakeCode });
+  throw new Error('Use handleConfirmDriverWithChallenge');
+}
+
+export async function handleConfirmDriverWithChallenge(requestId: string, handshakeCode: string, challengeId: string): Promise<PickupRequest> {
+  const res = await api.post(`/requests/${requestId}/confirm-driver`, { handshakeCode, challengeId });
   return res.data;
 }
 
 /** CLIENT: Open locker with code */
 export async function handleOpenLocker(code: string): Promise<PickupRequest> {
-  const res = await api.post('/lockers/open', { lockerCode: code });
+  throw new Error('Use handleOpenLockerWithChallenge');
+}
+
+export async function handleOpenLockerWithChallenge(code: string, challengeId: string): Promise<PickupRequest> {
+  const res = await api.post('/lockers/open', { lockerCode: code, challengeId });
   return res.data;
 }
 
@@ -270,35 +317,42 @@ export interface FleetStatus {
   available: number;
 }
 
-export interface AuditEvent {
-  id: string;
-  request_id: number;
-  event_type: string;
-  actor_id: number;
-  metadata: string | null;
-  signature: string;
-  block_index: number;
-  previous_event_hash: string | null;
-  event_hash: string;
-  receipt_payload: string | null;
-  receipt_hash: string | null;
-  created_at: string;
-}
-
 export interface CustodyChainVerification {
   requestId: number;
   verified: boolean;
-  storageMode: 'HASH_CHAINED_POSTGRES';
+  storageMode: 'PERMISSIONED_CUSTODY_LEDGER' | 'HASH_CHAINED_POSTGRES';
   blockCount: number;
-  criticalBlockCount: number;
-  lastEventHash: string | null;
+  criticalBlockCount?: number;
+  lastBlockHash?: string | null;
+  lastEventHash?: string | null;
   issues: string[];
-  receipts: Array<{
+  receipts?: Array<{
     eventId: string;
     eventType: string;
     valid: boolean;
     receiptHash: string | null;
   }>;
+}
+
+export interface CustodyProof {
+  requestId: number;
+  storageMode: 'PERMISSIONED_CUSTODY_LEDGER';
+  blocks: Array<{
+    proposalId: string;
+    requestId: number;
+    eventType: 'HANDSHAKE_VALIDATED' | 'DEPOSITED' | 'PICKED_UP';
+    blockHeight: number;
+    previousBlockHash: string | null;
+    payloadDigest: string;
+    challengeHash: string;
+    canonicalMessage: string;
+    actorSignatures: Array<{ actorId: number; role: string; fingerprint: string }>;
+    systemAttestations: Array<{ role: string; signedAt: string; metadata: Record<string, unknown> }>;
+    validatorCommitCertificate: Array<{ validatorId: string; committedAt: string; signature: string }>;
+    blockHash: string;
+    createdAt: string;
+  }>;
+  verification: CustodyChainVerification;
 }
 
 export async function getMetricsThroughput(): Promise<ThroughputMetrics> {
@@ -316,13 +370,54 @@ export async function getFleetStatus(): Promise<FleetStatus> {
   return res.data;
 }
 
-export async function getAuditTrailByRequest(requestId: number): Promise<AuditEvent[]> {
-  const res = await api.get(`/admin/audit-trail/${requestId}`);
+export async function getAuditTrailByRequest(requestId: number): Promise<CustodyProof> {
+  const res = await api.get(`/admin/custody-ledger/${requestId}`);
   return res.data;
 }
 
 export async function verifyAuditTrailByRequest(requestId: number): Promise<CustodyChainVerification> {
-  const res = await api.get(`/admin/audit-trail/${requestId}/verify`);
+  const res = await api.get(`/admin/custody-ledger/${requestId}/verify`);
+  return res.data;
+}
+
+export async function getSigningIdentity(): Promise<SigningIdentity> {
+  const res = await api.get('/custody/signing-key');
+  return res.data;
+}
+
+export async function registerSigningKey(publicKeyJwk: JsonWebKey): Promise<SigningIdentity> {
+  const res = await api.post('/custody/signing-key/register', {
+    algorithm: 'ECDSA_P256_SHA256',
+    publicKeyJwk,
+  });
+  return res.data;
+}
+
+export async function rotateSigningKey(publicKeyJwk: JsonWebKey): Promise<SigningIdentity> {
+  const res = await api.post('/custody/signing-key/rotate', {
+    algorithm: 'ECDSA_P256_SHA256',
+    publicKeyJwk,
+  });
+  return res.data;
+}
+
+export async function createCustodyChallenge(requestId: number, eventType: CustodyChallenge['eventType']): Promise<CustodyChallenge> {
+  const res = await api.post('/custody/challenges', { requestId, eventType });
+  return res.data;
+}
+
+export async function getCustodyChallenge(challengeId: string): Promise<CustodyChallenge> {
+  const res = await api.get(`/custody/challenges/${challengeId}`);
+  return res.data;
+}
+
+export async function submitCustodySignature(challengeId: string, signature: string): Promise<CustodyChallenge> {
+  const res = await api.post(`/custody/challenges/${challengeId}/sign`, { signature });
+  return res.data;
+}
+
+export async function getCustodyProof(requestId: number): Promise<CustodyProof> {
+  const res = await api.get(`/requests/${requestId}/custody-proof`);
   return res.data;
 }
 

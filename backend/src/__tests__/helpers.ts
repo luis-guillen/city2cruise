@@ -8,6 +8,7 @@
 import { Pool } from 'pg';
 import { sqlSchema } from '../db/schema.sql';
 import bcrypt from 'bcrypt';
+import { resetCustodyLedgerForTests } from '../services/CustodyLedgerService';
 
 // ─── Pool de Test ──────────────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ export const getTestPool = (): Pool => {
  * Debe llamarse en beforeAll.
  */
 export const setupTestDb = async () => {
+    await resetCustodyLedgerForTests();
     const pool = getTestPool();
 
     // Crear schema desde cero  
@@ -100,6 +102,7 @@ export const truncateTestDb = async () => {
  * Cierra el pool de test. Llamar en afterAll.
  */
 export const teardownTestDb = async () => {
+    await resetCustodyLedgerForTests();
     if (testPool) {
         await testPool.end();
         testPool = undefined as any;

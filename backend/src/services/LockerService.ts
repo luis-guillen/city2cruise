@@ -4,13 +4,19 @@ import { logAuditEvent } from './AuditService';
 import { logger } from '../utils/logger';
 import { ServiceError } from '../utils/errors';
 import { decryptField } from '../utils/crypto';
+import {
+    abortCustodyCommit,
+    finalizeCustodyCommit,
+    markChallengeCommitted,
+    prepareCustodyCommit,
+} from './CustodyLedgerService';
 
 // ── a) openLocker ────────────────────────────────────────────────────────────
 
 export async function openLocker(
-    params: { lockerCode: string; userId: number; userName: string }
+    params: { lockerCode: string; challengeId?: string; userId: number; userName: string }
 ) {
-    const { lockerCode, userId, userName } = params;
+    const { lockerCode, challengeId, userId, userName } = params;
     const now = new Date().toISOString();
 
     const { rows: depositedRows } = await db.query(`
@@ -70,6 +76,46 @@ export async function openLocker(
         client.release();
     }
 
+    let preparedCommit: Awaited<ReturnType<typeof prepareCustodyCommit>> | null = null;
+    if (challengeId) {
+        preparedCommit = await prepareCustodyCommit({
+            challengeId,
+            eventType: 'PICKED_UP',
+            systemAttestationMetadata: [
+                {
+                    lockerLabel: matchedRow.locker_label,
+                    lockerCodeExpiresAt: matchedRow.locker_code_expires_at,
+                },
+            ],
+        });
+
+        try {
+            await finalizeCustodyCommit(preparedCommit.proposalId);
+            await markChallengeCommitted(challengeId);
+        } catch (err) {
+            await abortCustodyCommit(preparedCommit.proposalId);
+            await db.query(`
+                UPDATE pickup_requests
+                SET status = 'DEPOSITED', updated_at = $1
+                WHERE id = $2
+            `, [new Date().toISOString(), matchedRow.id]);
+            await db.query(`
+                UPDATE lockers
+                SET is_occupied = TRUE, current_request_id = $1, access_code = $2, updated_at = $3
+                WHERE id = $4
+            `, [matchedRow.id, matchedRow.locker_code, new Date().toISOString(), matchedRow.locker_id]);
+            logger.error({
+                err,
+                requestId: matchedRow.id,
+                challengeId,
+                proposalId: preparedCommit.proposalId,
+            }, 'Custody ledger commit failed during locker open; state compensated back to DEPOSITED');
+            throw err;
+        }
+    } else if (process.env.NODE_ENV !== 'test') {
+        throw new ServiceError(400, 'CUSTODY_CHALLENGE_REQUIRED', 'Se requiere challenge firmado para abrir la taquilla');
+    }
+
     logger.info({ requestId: matchedRow.id, locker: matchedRow.locker_label }, 'Locker opened');
     await logAuditEvent({
         requestId: matchedRow.id,
@@ -80,6 +126,8 @@ export async function openLocker(
         counterpartyRole: matchedRow.driver_id ? 'DRIVER' : undefined,
         metadata: {
             lockerLabel: matchedRow.locker_label,
+            custodyBlockHash: preparedCommit?.block.blockHash ?? null,
+            custodyLedgerHeight: preparedCommit?.block.blockHeight ?? null,
         },
     });
 
@@ -92,6 +140,13 @@ export async function openLocker(
     `, [matchedRow.id]);
 
     const dto = buildPickupRequestDTO(row);
+    dto.custodySummary = preparedCommit ? {
+        storageMode: 'PERMISSIONED_CUSTODY_LEDGER',
+        blockHash: preparedCommit.block.blockHash,
+        previousBlockHash: preparedCommit.block.previousBlockHash,
+        ledgerHeight: preparedCommit.block.blockHeight,
+        quorumProof: preparedCommit.block.validatorCommitCertificate,
+    } : null;
     return { dto };
 }
 

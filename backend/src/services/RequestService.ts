@@ -8,8 +8,16 @@ import { ServiceError } from '../utils/errors';
 import { encryptField, decryptField } from '../utils/crypto';
 import { notifyDepositReady, notifyRequestAssigned } from './NotificationService';
 import { config } from '../config/env';
-import { requestsCreatedTotal, requestsCompletedTotal, requestsFailedTotal, requestMatchSeconds } from '../observability/metrics';
+import { requestsCreatedTotal, requestsCompletedTotal, requestMatchSeconds } from '../observability/metrics';
 import { syncRequestCreated, syncRequestAssigned, syncRequestDeposited } from './twin/TwinSyncService';
+import {
+    abortCustodyCommit,
+    finalizeCustodyCommit,
+    getLatestCustodySummary,
+    getOrCreateCustodyChallenge,
+    markChallengeCommitted,
+    prepareCustodyCommit,
+} from './CustodyLedgerService';
 
 const MAX_HANDSHAKE_ATTEMPTS = 3;
 
@@ -18,6 +26,34 @@ export const LOCKER_SIZES_FOR: Record<string, string[]> = {
     MEDIUM: ['M', 'L'],
     LARGE: ['L'],
 };
+
+async function attachCustodyState(dto: any) {
+    dto.custodySummary = await getLatestCustodySummary(Number(dto.id));
+    if (dto.status === 'CONFIRMATION_PENDING') {
+        try {
+            const challenge = await getOrCreateCustodyChallenge({
+                requestId: Number(dto.id),
+                eventType: 'HANDSHAKE_VALIDATED',
+                requesterId: dto.clientId,
+                requesterRole: 'CLIENT',
+                eventPayload: {},
+            });
+            dto.custodyChallenge = {
+                ...challenge,
+                signatures: challenge.signatures.map((signature) => ({
+                    actorId: signature.actorId,
+                    role: signature.role,
+                    signature: signature.signature,
+                })),
+            };
+        } catch {
+            dto.custodyChallenge = null;
+        }
+    } else {
+        dto.custodyChallenge = null;
+    }
+    return dto;
+}
 
 // ── a) createRequest ────────────────────────────────────────────────────────
 
@@ -206,6 +242,14 @@ export async function acceptRequest(
         WHERE r.id = $1
     `, [requestId]);
     const dto = buildPickupRequestDTO(row);
+    const custodyChallenge = await getOrCreateCustodyChallenge({
+        requestId: Number(requestId),
+        eventType: 'HANDSHAKE_VALIDATED',
+        requesterId: driverId,
+        requesterRole: 'DRIVER',
+        eventPayload: {},
+    });
+    await attachCustodyState(dto);
 
     // Notify client: conductor en camino (fire-and-forget)
     notifyRequestAssigned(dto.clientId).catch(() => {});
@@ -221,7 +265,7 @@ export async function acceptRequest(
     // Hito 5.4.3 — telemetría al twin
     syncRequestAssigned(dto.id, driverId).catch(() => {});
 
-    return { dto, handshakeCode };
+    return { dto, handshakeCode, custodyChallenge };
 }
 
 // ── c) confirmHandshake ─────────────────────────────────────────────────────
@@ -231,11 +275,12 @@ export async function confirmHandshake(
         requestId: string;
         clientId: number;
         handshakeCode: string;
+        challengeId?: string;
         clientLat?: number;
         clientLon?: number;
     }
 ) {
-    const { requestId, clientId, handshakeCode, clientLat, clientLon } = params;
+    const { requestId, clientId, handshakeCode, challengeId, clientLat, clientLon } = params;
     const now = new Date().toISOString();
 
     const { rows: [request] } = await db.query('SELECT * FROM pickup_requests WHERE id = $1', [requestId]);
@@ -337,6 +382,36 @@ export async function confirmHandshake(
         throw new ServiceError(409, 'CONFLICT', 'El pedido ya no está disponible');
     }
 
+    let preparedCommit: Awaited<ReturnType<typeof prepareCustodyCommit>> | null = null;
+    if (challengeId) {
+        preparedCommit = await prepareCustodyCommit({
+            challengeId,
+            eventType: 'HANDSHAKE_VALIDATED',
+            systemAttestationMetadata: [],
+        });
+
+        try {
+            await finalizeCustodyCommit(preparedCommit.proposalId);
+            await markChallengeCommitted(challengeId);
+        } catch (err) {
+            await abortCustodyCommit(preparedCommit.proposalId);
+            await db.query(`
+                UPDATE pickup_requests
+                SET status = 'CONFIRMATION_PENDING', updated_at = $1
+                WHERE id = $2
+            `, [new Date().toISOString(), requestId]);
+            logger.error({
+                err,
+                requestId,
+                challengeId,
+                proposalId: preparedCommit.proposalId,
+            }, 'Custody ledger commit failed during handshake confirmation; state compensated back to CONFIRMATION_PENDING');
+            throw err;
+        }
+    } else if (config.env !== 'test') {
+        throw new ServiceError(400, 'CUSTODY_CHALLENGE_REQUIRED', 'Se requiere challenge firmado para confirmar el handshake');
+    }
+
     const { rows: [updatedRow] } = await db.query(`
         SELECT r.*, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
         FROM pickup_requests r
@@ -355,9 +430,19 @@ export async function confirmHandshake(
             clientLat: clientLat ?? null,
             clientLon: clientLon ?? null,
             attemptNumber,
+            custodyBlockHash: preparedCommit?.block.blockHash ?? null,
+            custodyLedgerHeight: preparedCommit?.block.blockHeight ?? null,
         },
     });
 
+    dto.custodySummary = preparedCommit ? {
+        storageMode: 'PERMISSIONED_CUSTODY_LEDGER',
+        blockHash: preparedCommit.block.blockHash,
+        previousBlockHash: preparedCommit.block.previousBlockHash,
+        ledgerHeight: preparedCommit.block.blockHeight,
+        quorumProof: preparedCommit.block.validatorCommitCertificate,
+    } : null;
+    dto.custodyChallenge = null;
     return { dto };
 }
 
@@ -367,10 +452,11 @@ export async function depositRequest(
     params: {
         requestId: string;
         driverId: number;
+        challengeId?: string;
         lockerLabel?: string;
     }
 ) {
-    const { requestId, driverId, lockerLabel } = params;
+    const { requestId, driverId, challengeId, lockerLabel } = params;
     const now = new Date().toISOString();
 
     const plainCode = crypto.randomInt(100000, 999999).toString();
@@ -391,6 +477,7 @@ export async function depositRequest(
     let resultData: {
         lockerCode: string;
         lockerLabel: string;
+        lockerId: number;
         clientId: number;
         notification: any;
     };
@@ -455,6 +542,7 @@ export async function depositRequest(
         resultData = {
             lockerCode: plainCode,
             lockerLabel: locker.label,
+            lockerId: locker.id,
             clientId: existing.client_id,
             notification: {
                 id: notifRow.id,
@@ -474,6 +562,51 @@ export async function depositRequest(
         pgClient.release();
     }
 
+    let preparedCommit: Awaited<ReturnType<typeof prepareCustodyCommit>> | null = null;
+    if (challengeId) {
+        preparedCommit = await prepareCustodyCommit({
+            challengeId,
+            eventType: 'DEPOSITED',
+            systemAttestationMetadata: [
+                {
+                    lockerLabel: resultData.lockerLabel,
+                    lockerCodeExpiresAt,
+                },
+            ],
+        });
+
+        try {
+            await finalizeCustodyCommit(preparedCommit.proposalId);
+            await markChallengeCommitted(challengeId);
+        } catch (err) {
+            await abortCustodyCommit(preparedCommit.proposalId);
+            await db.query(`
+                UPDATE pickup_requests
+                SET status = 'IN_PROGRESS',
+                    locker_id = NULL,
+                    locker_code = NULL,
+                    locker_code_expires_at = NULL,
+                    updated_at = $1
+                WHERE id = $2
+            `, [new Date().toISOString(), requestId]);
+            await db.query(`
+                UPDATE lockers
+                SET is_occupied = FALSE, current_request_id = NULL, access_code = NULL, updated_at = $1
+                WHERE id = $2
+            `, [new Date().toISOString(), resultData.lockerId]);
+            logger.error({
+                err,
+                requestId,
+                challengeId,
+                proposalId: preparedCommit.proposalId,
+                lockerId: resultData.lockerId,
+            }, 'Custody ledger commit failed during deposit; state compensated back to IN_PROGRESS');
+            throw err;
+        }
+    } else if (config.env !== 'test') {
+        throw new ServiceError(400, 'CUSTODY_CHALLENGE_REQUIRED', 'Se requiere challenge firmado para confirmar el depósito');
+    }
+
     logger.info({ requestId, locker: resultData.lockerLabel }, 'Request deposited');
     await logAuditEvent({
         requestId: Number(requestId),
@@ -485,6 +618,8 @@ export async function depositRequest(
         metadata: {
             lockerLabel: resultData.lockerLabel,
             lockerCodeExpiresAt,
+            custodyBlockHash: preparedCommit?.block.blockHash ?? null,
+            custodyLedgerHeight: preparedCommit?.block.blockHeight ?? null,
         },
     });
 
@@ -507,6 +642,13 @@ export async function depositRequest(
 
     const dto = buildPickupRequestDTO(row);
     dto.lockerCode = resultData.lockerCode;
+    dto.custodySummary = preparedCommit ? {
+        storageMode: 'PERMISSIONED_CUSTODY_LEDGER',
+        blockHash: preparedCommit.block.blockHash,
+        previousBlockHash: preparedCommit.block.previousBlockHash,
+        ledgerHeight: preparedCommit.block.blockHeight,
+        quorumProof: preparedCommit.block.validatorCommitCertificate,
+    } : null;
 
     return {
         dto,
@@ -553,6 +695,12 @@ export async function renewHandshake(
             SET handshake_code = $1, handshake_expires_at = $2, updated_at = $3
             WHERE id = $4
         `, [newCodeStore, newExpiresAt, now, requestId]);
+        await client.query(
+            `UPDATE custody_challenges
+             SET status = 'REVOKED', updated_at = $1
+             WHERE request_id = $2 AND event_type = 'HANDSHAKE_VALIDATED' AND status = 'PENDING'`,
+            [now, requestId],
+        );
 
         await client.query('COMMIT');
     } catch (err) {
@@ -604,7 +752,7 @@ export async function getClientCurrent(params: { userId: number }) {
     } else {
         dto.lockerCode = decryptField(dto.lockerCode);
     }
-    return dto;
+    return attachCustodyState(dto);
 }
 
 export async function getClientHistory(params: { userId: number }) {
@@ -617,7 +765,7 @@ export async function getClientHistory(params: { userId: number }) {
         ORDER BY r.created_at DESC
     `, [params.userId]);
 
-    return rows.map((row: any) => {
+    return Promise.all(rows.map(async (row: any) => {
         const dto = buildPickupRequestDTO(row);
         dto.handshakeCode = null;
         if (dto.status !== 'DEPOSITED') {
@@ -625,8 +773,8 @@ export async function getClientHistory(params: { userId: number }) {
         } else {
             dto.lockerCode = decryptField(dto.lockerCode);
         }
-        return dto;
-    });
+        return attachCustodyState(dto);
+    }));
 }
 
 // ── getPendingRequests ──────────────────────────────────────────────────────
@@ -687,7 +835,7 @@ export async function getDriverPickups(params: { driverId: number }) {
         ORDER BY r.updated_at DESC
     `, [params.driverId]);
 
-    return rows.map((row: any) => {
+    return Promise.all(rows.map(async (row: any) => {
         const dto = buildPickupRequestDTO(row);
         dto.handshakeCode = dto.status === 'CONFIRMATION_PENDING'
             ? decryptField(dto.handshakeCode)
@@ -697,6 +845,6 @@ export async function getDriverPickups(params: { driverId: number }) {
         } else {
             dto.lockerCode = decryptField(dto.lockerCode);
         }
-        return dto;
-    });
+        return attachCustodyState(dto);
+    }));
 }

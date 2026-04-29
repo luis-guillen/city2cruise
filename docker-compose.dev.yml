@@ -32,23 +32,107 @@ services:
       retries: 5
     restart: unless-stopped
 
+  ledger-a:
+    build: ./validator
+    ports:
+      - "4001:4001"
+    environment:
+      VALIDATOR_ID: ledger-a
+      VALIDATOR_PORT: "4001"
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_dev}
+      VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
+      LEDGER_DATA_DIR: /data/ledger
+      NODE_ENV: development
+    volumes:
+      - ledger_a_dev:/data/ledger
+      - ./validator/src:/app/src
+    command: ["npx", "tsx", "watch", "src/index.ts"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  ledger-b:
+    build: ./validator
+    ports:
+      - "4002:4001"
+    environment:
+      VALIDATOR_ID: ledger-b
+      VALIDATOR_PORT: "4001"
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_dev}
+      VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
+      LEDGER_DATA_DIR: /data/ledger
+      NODE_ENV: development
+    volumes:
+      - ledger_b_dev:/data/ledger
+      - ./validator/src:/app/src
+    command: ["npx", "tsx", "watch", "src/index.ts"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  ledger-c:
+    build: ./validator
+    ports:
+      - "4003:4001"
+    environment:
+      VALIDATOR_ID: ledger-c
+      VALIDATOR_PORT: "4001"
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_dev}
+      VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
+      LEDGER_DATA_DIR: /data/ledger
+      NODE_ENV: development
+    volumes:
+      - ledger_c_dev:/data/ledger
+      - ./validator/src:/app/src
+    command: ["npx", "tsx", "watch", "src/index.ts"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      target: builder
+    env_file:
+      - ./backend/.env
     ports:
       - "9000:9000"
     environment:
       NODE_ENV: development
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_dev}
       DATABASE_URL: postgres://cruise:cruise_secret@db:5432/cruise_connect
       FRONTEND_URL: http://localhost:9100
       REDIS_URL: redis://redis:6379
+      VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
+      VALIDATOR_LEDGER_A_URL: http://ledger-a:4001
+      VALIDATOR_LEDGER_B_URL: http://ledger-b:4001
+      VALIDATOR_LEDGER_C_URL: http://ledger-c:4001
     volumes:
       - ./backend/src:/app/src
-    command: ["npx", "ts-node-dev", "--respawn", "src/index.ts"]
+    command: ["npm", "run", "dev"]
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      ledger-a:
+        condition: service_healthy
+      ledger-b:
+        condition: service_healthy
+      ledger-c:
         condition: service_healthy
     restart: unless-stopped
 
@@ -57,7 +141,7 @@ services:
       context: ./cruise-connect-main
       target: builder
     ports:
-      - "9100:5173"
+      - "9100:9100"
     environment:
       VITE_API_URL: http://localhost:9000/api
       VITE_SOCKET_URL: http://localhost:9000
@@ -71,3 +155,6 @@ services:
 volumes:
   pgdata_dev:
   redisdata_dev:
+  ledger_a_dev:
+  ledger_b_dev:
+  ledger_c_dev:

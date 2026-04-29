@@ -17,10 +17,12 @@ export const acceptSchema = z.object({
 
 export const confirmDriverSchema = z.object({
     handshakeCode: z.string().regex(/^\d{4}$/, 'El código debe ser exactamente 4 dígitos numéricos'),
+    challengeId: z.string().min(1, 'challengeId obligatorio').optional(),
     latitude: z.number().optional(),
     longitude: z.number().optional(),
 });
 
 export const depositSchema = z.object({
+    challengeId: z.string().min(1, 'challengeId obligatorio').optional(),
     lockerLabel: z.string().optional(),
 });

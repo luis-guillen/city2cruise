@@ -2,14 +2,16 @@ import React, { createContext, useContext, useState, useEffect, useCallback, typ
 import type { PickupRequest } from "@/services/api";
 import { getClientMine, getPendingRequests, getDriverPickups, logoutUser } from "@/services/api";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { ensureDeviceSigningIdentity } from "@/services/custodyClient";
 
 type Role = "CLIENT" | "DRIVER" | "ADMIN" | null;
 
 interface AppState {
+  userId: number | null;
   userName: string;
   role: Role;
   token: string | null;
-  setUser: (name: string, role: Role, token: string, homeCoords?: { lat: number; lon: number } | null) => void;
+  setUser: (id: number, name: string, role: Role, token: string, homeCoords?: { lat: number; lon: number } | null) => void;
   logout: () => void;
   currentRequest: PickupRequest | null;
   setCurrentRequest: React.Dispatch<React.SetStateAction<PickupRequest | null>>;
@@ -24,6 +26,10 @@ interface AppState {
 const AppContext = createContext<AppState | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [userId, setUserId] = useState<number | null>(() => {
+    const raw = localStorage.getItem('userId');
+    return raw ? Number(raw) : null;
+  });
   const [userName, setUserName] = useState(localStorage.getItem('userName') || "");
   const [role, setRole] = useState<Role>(localStorage.getItem('role') as Role || null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
@@ -38,6 +44,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearLocalState = useCallback(() => {
     setUserName("");
+    setUserId(null);
     setRole(null);
     setToken(null);
     setCurrentRequest(null);
@@ -46,15 +53,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHomeCoords(null);
     localStorage.removeItem('token');
     localStorage.removeItem('userName');
+    localStorage.removeItem('userId');
     localStorage.removeItem('role');
     localStorage.removeItem('homeCoords');
   }, []);
 
-  const setUser = (name: string, r: Role, t: string, hc?: { lat: number; lon: number } | null) => {
+  const setUser = (id: number, name: string, r: Role, t: string, hc?: { lat: number; lon: number } | null) => {
+    setUserId(id);
     setUserName(name);
     setRole(r);
     setToken(t);
     localStorage.setItem('userName', name);
+    localStorage.setItem('userId', String(id));
     localStorage.setItem('role', r || '');
     localStorage.setItem('token', t);
     if (hc) {
@@ -81,6 +91,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (token) syncSubscription();
   }, [token, syncSubscription]);
+
+  useEffect(() => {
+    if (!token || !userId) return;
+    ensureDeviceSigningIdentity(userId).catch((err) => {
+      console.error('Error ensuring signing identity:', err);
+    });
+  }, [token, userId]);
 
   const refreshData = useCallback(async () => {
     if (!token) return;
@@ -111,6 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         userName,
+        userId,
         role,
         token,
         setUser,

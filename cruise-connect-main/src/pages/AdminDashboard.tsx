@@ -5,7 +5,7 @@ import {
   getAdminUsers, deleteAdminUser,
   getMetricsThroughput, getMetricsTiming, getFleetStatus,
   getAuditTrailByRequest, verifyAuditTrailByRequest, getAdminPayments, adminRefundPayment,
-  ThroughputMetrics, TimingMetrics, FleetStatus, AuditEvent, PaymentRecord, CustodyChainVerification
+  ThroughputMetrics, TimingMetrics, FleetStatus, PaymentRecord, CustodyChainVerification, CustodyProof
 } from '@/services/api';
 import GlassNavbar from '@/components/ios/GlassNavbar';
 import GlassCard from '@/components/ios/GlassCard';
@@ -29,15 +29,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const AUDIT_BADGE: Record<string, string> = {
-  REQUESTED: 'ios-badge-orange',
-  ASSIGNED: 'ios-badge-blue',
-  CONFIRMATION_PENDING: 'ios-badge-purple',
   HANDSHAKE_VALIDATED: 'ios-badge-green',
-  IN_PROGRESS: 'ios-badge-blue',
   DEPOSITED: 'ios-badge-green',
   PICKED_UP: 'ios-badge-purple',
-  RATE_LIMIT_BLOCK: 'ios-badge-red',
-  CANCELLED: 'ios-badge-red',
 };
 
 export default function AdminDashboard() {
@@ -50,7 +44,7 @@ export default function AdminDashboard() {
   const [throughput, setThroughput] = useState<ThroughputMetrics | null>(null);
   const [timing, setTiming] = useState<TimingMetrics | null>(null);
   const [fleet, setFleet] = useState<FleetStatus | null>(null);
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [auditProof, setAuditProof] = useState<CustodyProof | null>(null);
   const [auditVerification, setAuditVerification] = useState<CustodyChainVerification | null>(null);
   const [auditSearchId, setAuditSearchId] = useState('');
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -111,9 +105,9 @@ export default function AdminDashboard() {
         getAuditTrailByRequest(id),
         verifyAuditTrailByRequest(id),
       ]);
-      setAuditEvents(events);
+      setAuditProof(events);
       setAuditVerification(verification);
-      if (events.length === 0) toast('Sin eventos para esta solicitud');
+      if (events.blocks.length === 0) toast('Sin bloques para esta solicitud');
     } catch { toast.error('Error buscando auditoría'); }
   };
 
@@ -423,7 +417,7 @@ export default function AdminDashboard() {
             <GlassCard variant="ultra">
               <h3 className="ios-title flex items-center gap-2 mb-3">
                 <Shield className="w-5 h-5 text-[var(--ios-blue)]" />
-                Auditoría HMAC-SHA256
+                Ledger de custodia
               </h3>
               <div className="flex gap-2">
                 <GlassInput
@@ -450,11 +444,11 @@ export default function AdminDashboard() {
                       Cadena de custodia
                     </h4>
                     <p className="ios-caption mt-1">
-                      {auditVerification.storageMode} · {auditVerification.blockCount} bloques · {auditVerification.criticalBlockCount} bloques críticos
+                      {auditVerification.storageMode} · {auditVerification.blockCount} bloques
                     </p>
-                    {auditVerification.lastEventHash && (
+                    {(auditVerification.lastBlockHash || auditVerification.lastEventHash) && (
                       <p className="font-mono text-[11px] text-[var(--ios-text-tertiary)] mt-1">
-                        {auditVerification.lastEventHash.slice(0, 24)}...
+                        {(auditVerification.lastBlockHash || auditVerification.lastEventHash)?.slice(0, 24)}...
                       </p>
                     )}
                   </div>
@@ -472,34 +466,27 @@ export default function AdminDashboard() {
               </GlassCard>
             )}
 
-            {auditEvents.length > 0 && (
+            {auditProof && auditProof.blocks.length > 0 && (
               <GlassCard variant="ultra" padding="none">
                 <div className="px-4 pt-4 pb-2">
-                  <p className="ios-caption">{auditEvents.length} eventos encontrados</p>
+                  <p className="ios-caption">{auditProof.blocks.length} bloques encontrados</p>
                 </div>
-                {auditEvents.map((event) => (
-                  <div key={event.id} className="ios-list-item flex-col items-start gap-1">
+                {auditProof.blocks.map((block) => (
+                  <div key={block.proposalId} className="ios-list-item flex-col items-start gap-1">
                     <div className="flex items-center justify-between w-full">
-                      <span className={`ios-badge ${AUDIT_BADGE[event.event_type] || 'ios-badge-gray'}`}>
-                        {event.event_type}
+                      <span className={`ios-badge ${AUDIT_BADGE[block.eventType] || 'ios-badge-gray'}`}>
+                        {block.eventType}
                       </span>
                       <span className="ios-caption">
-                        {new Date(event.created_at).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        {new Date(block.createdAt).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 w-full mt-1">
-                      <span className="ios-caption">Actor: {event.actor_id}</span>
-                      {event.metadata && (
-                        <span className="ios-caption truncate flex-1">
-                          {(() => {
-                            try { return JSON.stringify(JSON.parse(event.metadata)).slice(0, 60); }
-                            catch { return event.metadata.slice(0, 60); }
-                          })()}
-                        </span>
-                      )}
+                      <span className="ios-caption">Firmas: {block.actorSignatures.map((signature) => `${signature.role}#${signature.actorId}`).join(', ')}</span>
+                      <span className="ios-caption truncate flex-1">Quórum: {block.validatorCommitCertificate.map((vote) => vote.validatorId).join(', ')}</span>
                     </div>
                     <p className="font-mono text-[11px] text-[var(--ios-text-tertiary)] mt-0.5">
-                      #{event.block_index} · {event.event_hash.slice(0, 16)}...
+                      #{block.blockHeight} · {block.blockHash.slice(0, 16)}...
                     </p>
                   </div>
                 ))}

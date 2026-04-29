@@ -17,6 +17,63 @@ services:
       retries: 5
       start_period: 10s
 
+  ledger-a:
+    build: ./validator
+    environment:
+      VALIDATOR_ID: ledger-a
+      VALIDATOR_PORT: "4001"
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_change_in_prod}
+      VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
+      LEDGER_DATA_DIR: /data/ledger
+      NODE_ENV: production
+    volumes:
+      - ledger_a_data:/data/ledger
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  ledger-b:
+    build: ./validator
+    environment:
+      VALIDATOR_ID: ledger-b
+      VALIDATOR_PORT: "4001"
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_change_in_prod}
+      VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
+      LEDGER_DATA_DIR: /data/ledger
+      NODE_ENV: production
+    volumes:
+      - ledger_b_data:/data/ledger
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  ledger-c:
+    build: ./validator
+    environment:
+      VALIDATOR_ID: ledger-c
+      VALIDATOR_PORT: "4001"
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_change_in_prod}
+      VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
+      LEDGER_DATA_DIR: /data/ledger
+      NODE_ENV: production
+    volumes:
+      - ledger_c_data:/data/ledger
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   backend:
     build: ./backend
     ports:
@@ -24,10 +81,21 @@ services:
     environment:
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_change_in_prod}
       DATABASE_URL: postgres://cruise:cruise_secret@db:5432/cruise_connect
       FRONTEND_URL: http://localhost
+      VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
+      VALIDATOR_LEDGER_A_URL: http://ledger-a:4001
+      VALIDATOR_LEDGER_B_URL: http://ledger-b:4001
+      VALIDATOR_LEDGER_C_URL: http://ledger-c:4001
     depends_on:
       db:
+        condition: service_healthy
+      ledger-a:
+        condition: service_healthy
+      ledger-b:
+        condition: service_healthy
+      ledger-c:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -40,7 +108,6 @@ services:
   frontend:
     build: ./cruise-connect-main
     ports:
-      # Hito H-1.3 (S-03): contenedor escucha en 8080 (nginx-unprivileged), publicado en 80.
       - "80:8080"
     depends_on:
       - backend
@@ -54,3 +121,6 @@ services:
 
 volumes:
   pgdata:
+  ledger_a_data:
+  ledger_b_data:
+  ledger_c_data:

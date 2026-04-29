@@ -23,6 +23,7 @@ lockersRouter.post('/open', authMiddleware, requireRole('CLIENT'), validateBody(
 
         const { dto } = await LockerService.openLocker({
             lockerCode: req.body.lockerCode,
+            challengeId: req.body.challengeId,
             userId: req.user!.id,
             userName: req.user!.name,
         });

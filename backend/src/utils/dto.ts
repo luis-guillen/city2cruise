@@ -24,6 +24,8 @@ export const buildPickupRequestDTO = (row: any): PickupRequestDTO => {
         driverLongitude: row.driver_longitude ?? null,
         locker: row.locker_id ? { id: row.locker_id, label: row.locker_label } : null,
         lockerCode: row.locker_code ?? null,
+        custodyChallenge: null,
+        custodySummary: null,
         createdAt: row.created_at,
         updatedAt: row.updated_at
     };

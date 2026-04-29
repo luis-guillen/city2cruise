@@ -40,11 +40,21 @@ CREATE TABLE IF NOT EXISTS users (
   latitude DOUBLE PRECISION NULL,
   longitude DOUBLE PRECISION NULL,
   location GEOGRAPHY(Point, 4326) NULL,
+  signing_public_key JSONB NULL,
+  signing_key_algorithm TEXT NULL CHECK(signing_key_algorithm IN ('ECDSA_P256_SHA256')),
+  signing_key_status TEXT NOT NULL DEFAULT 'UNREGISTERED' CHECK(signing_key_status IN ('UNREGISTERED','ACTIVE','REVOKED')),
+  signing_key_registered_at TIMESTAMPTZ NULL,
+  signing_key_rotated_at TIMESTAMPTZ NULL,
   vehicle_identifier TEXT,
   accessibility_profile TEXT CHECK(accessibility_profile IN ('standard','pmr','age_advanced')) DEFAULT 'standard',
   device_identifier TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS signing_public_key JSONB NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS signing_key_algorithm TEXT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS signing_key_status TEXT NOT NULL DEFAULT 'UNREGISTERED';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS signing_key_registered_at TIMESTAMPTZ NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS signing_key_rotated_at TIMESTAMPTZ NULL;
 
 -- ─── LOCKERS ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS lockers (
@@ -213,6 +223,25 @@ ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS event_hash TEXT NOT NULL DEFAU
 ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS receipt_payload JSONB NULL;
 ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS receipt_hash TEXT NULL;
 
+-- ─── CUSTODY CHALLENGES ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS custody_challenges (
+  id TEXT PRIMARY KEY,
+  request_id INTEGER NOT NULL REFERENCES pickup_requests(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK(event_type IN ('HANDSHAKE_VALIDATED','DEPOSITED','PICKED_UP')),
+  challenge_payload JSONB NOT NULL,
+  canonical_message TEXT NOT NULL,
+  challenge_hash TEXT NOT NULL,
+  previous_block_hash TEXT NULL,
+  payload_digest TEXT NOT NULL,
+  required_signers JSONB NOT NULL,
+  signatures JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING','COMMITTED','REVOKED','EXPIRED')),
+  expires_at TIMESTAMPTZ NULL,
+  committed_at TIMESTAMPTZ NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ─── HANDSHAKE ATTEMPTS ─────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS handshake_attempts (
   id SERIAL PRIMARY KEY,
@@ -282,6 +311,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_request_id ON audit_events(request_i
 CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_events_request_block_index ON audit_events(request_id, block_index);
 CREATE INDEX IF NOT EXISTS idx_audit_events_event_hash ON audit_events(event_hash);
+CREATE INDEX IF NOT EXISTS idx_custody_challenges_request_event_status ON custody_challenges(request_id, event_type, status);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_handshake_attempts_request_id ON handshake_attempts(request_id);
 CREATE INDEX IF NOT EXISTS idx_merchants_integration_status ON merchants(integration_status);

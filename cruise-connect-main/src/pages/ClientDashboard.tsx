@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
-  handleCreateRequest, handleOpenLocker, handleConfirmDriver,
+  handleCreateRequest, handleOpenLockerWithChallenge, handleConfirmDriverWithChallenge,
   searchLocations, getClientHistory, PickupRequest
 } from '@/services/api';
 import { useSocket } from '@/hooks/useSocket';
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getApiErrorMessage } from '@/utils/errors';
+import { createAndSignCustodyChallenge, signExistingCustodyChallenge } from '@/services/custodyClient';
 
 const PACKAGE_OPTIONS = [
   { id: 'SMALL' as const, label: 'Pequeño', icon: Package, desc: 'Bolsas, souvenirs' },
@@ -46,7 +47,7 @@ function getStepIndex(status: string): number {
 
 export default function ClientDashboard() {
   const navigate = useNavigate();
-  const { userName, currentRequest, setCurrentRequest, logout, refreshData } = useApp();
+  const { userId, userName, currentRequest, setCurrentRequest, logout, refreshData } = useApp();
   useSocket();
   const { outsideZone, loading: geoLoading } = useClientGeoLocation();
 
@@ -200,7 +201,11 @@ export default function ClientDashboard() {
     if (!currentRequest || handshakeCodeInput.length !== 4) return;
     setIsLoading(true);
     try {
-      const updated = await handleConfirmDriver(currentRequest.id, handshakeCodeInput);
+      if (!userId) throw new Error('Usuario no disponible');
+      const baseChallenge = currentRequest.custodyChallenge
+        ?? await createAndSignCustodyChallenge(userId, Number(currentRequest.id), 'HANDSHAKE_VALIDATED');
+      const signedChallenge = await signExistingCustodyChallenge(userId, baseChallenge);
+      const updated = await handleConfirmDriverWithChallenge(currentRequest.id, handshakeCodeInput, signedChallenge.id);
       setCurrentRequest(updated);
       setHandshakeCodeInput('');
       toast.success('Encuentro confirmado');
@@ -217,7 +222,9 @@ export default function ClientDashboard() {
     }
     setIsLoading(true);
     try {
-      const updated = await handleOpenLocker(codeToUse);
+      if (!userId || !currentRequest) throw new Error('Usuario no disponible');
+      const challenge = await createAndSignCustodyChallenge(userId, Number(currentRequest.id), 'PICKED_UP');
+      const updated = await handleOpenLockerWithChallenge(codeToUse, challenge.id);
       if (updated && updated.status) {
         setCurrentRequest(updated);
         setLockerCode('');
@@ -437,6 +444,26 @@ export default function ClientDashboard() {
                     />
                   </div>
                 </GlassCard>
+
+                {currentRequest.custodySummary && (
+                  <GlassCard variant="default" delay={1}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-[var(--ios-blue)]/10 flex items-center justify-center">
+                        <ShieldCheck className="w-5 h-5 text-[var(--ios-blue)]" />
+                      </div>
+                      <div>
+                        <h3 className="ios-title">Recibo digital</h3>
+                        <p className="ios-caption">{currentRequest.custodySummary.storageMode}</p>
+                      </div>
+                    </div>
+                    <p className="font-mono text-[11px] text-[var(--ios-text-tertiary)] break-all">
+                      {currentRequest.custodySummary.blockHash}
+                    </p>
+                    <p className="ios-caption mt-2">
+                      Bloque #{currentRequest.custodySummary.ledgerHeight} · Quórum {currentRequest.custodySummary.quorumProof.map((vote) => vote.validatorId).join(', ')}
+                    </p>
+                  </GlassCard>
+                )}
 
                 {/* ── SEARCHING ANIMATION ── */}
                 {status === 'REQUESTED' && (
