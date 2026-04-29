@@ -15,11 +15,19 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Linting */
-    "strict": false,
+    /* Linting — Hito H-3.1 (S-10): strict mode en transición.
+       strict:true habilita todos los flags estrictos.
+       Mantenemos OFF noImplicitAny (se activa en H-3.3) y strictNullChecks
+       (se activa en H-3.2) para introducir el cambio en pasos verificables. */
+    "strict": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "alwaysStrict": true,
+    "useUnknownInCatchVariables": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noImplicitAny": false,
     "noFallthroughCasesInSwitch": false,
 
     "baseUrl": ".",

@@ -34,7 +34,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 
 ## Capítulo 3 — Observabilidad y auditoría continua
 
-- [ ] H-3.1
+- [x] H-3.1 — Activar strict modo transición (S-10 1/4)
 - [ ] H-3.2
 - [ ] H-3.3
 - [ ] H-3.4
