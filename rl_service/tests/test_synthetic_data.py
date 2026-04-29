@@ -15,6 +15,7 @@ from rl_service.synthetic_data import (
     SyntheticRequest,
     generate_episode,
     inject_gps_noise,
+    export_dataset,
 )
 
 
@@ -83,3 +84,38 @@ def test_gps_noise_zero_outlier_rate_keeps_close():
         # 5-sigma envelope = 25 m ≈ 0.000225 deg — very lax bound
         assert abs(lat - 28.12) < 0.0005
         assert abs(lon - (-15.43)) < 0.0005
+
+
+def test_export_dataset_writes_csv(tmp_path):
+    out = tmp_path / "episodes.csv"
+    n = export_dataset(path=str(out), n_episodes=10, seed_base=0)
+    assert n == 10
+    assert out.exists()
+    lines = out.read_text().strip().split("\n")
+    # header + at least one row per episode
+    assert len(lines) > 10
+    assert lines[0].startswith("episode_id,driver_id,driver_lat")
+
+
+def test_export_dataset_creates_parent_dirs(tmp_path):
+    out = tmp_path / "nested" / "deeper" / "episodes.csv"
+    n = export_dataset(path=str(out), n_episodes=2, seed_base=0)
+    assert n == 2
+    assert out.exists()
+
+
+def test_export_dataset_rows_match_expected_count(tmp_path):
+    """For default n_drivers=8 × n_requests=12 = 96 rows per episode."""
+    out = tmp_path / "episodes.csv"
+    export_dataset(path=str(out), n_episodes=5, seed_base=100)
+    lines = out.read_text().strip().split("\n")
+    # header + 5 × 96 rows
+    assert len(lines) == 1 + 5 * 8 * 12
+
+
+def test_export_dataset_reproducible(tmp_path):
+    a = tmp_path / "a.csv"
+    b = tmp_path / "b.csv"
+    export_dataset(path=str(a), n_episodes=3, seed_base=7)
+    export_dataset(path=str(b), n_episodes=3, seed_base=7)
+    assert a.read_text() == b.read_text()

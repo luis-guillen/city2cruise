@@ -11,9 +11,11 @@ Used by:
 """
 from __future__ import annotations
 
+import csv
 import math
 import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 # Service-area bounds — must match rl_service/gym_env.py
@@ -128,3 +130,71 @@ def inject_gps_noise(
             lon + jitter_lon_m * deg_per_m_lon,
         ))
     return out
+
+
+_CSV_HEADER = (
+    "episode_id",
+    "driver_id",
+    "driver_lat",
+    "driver_lon",
+    "driver_speed_mps",
+    "request_id",
+    "request_lat",
+    "request_lon",
+    "urgency",
+    "cruise_id",
+    "locker_occupancy",
+)
+
+
+def export_dataset(
+    path: str,
+    n_episodes: int,
+    seed_base: int = 0,
+    n_drivers: int = 8,
+    n_requests: int = 12,
+) -> int:
+    """
+    Write n_episodes synthetic episodes to a CSV file. Each row is the
+    Cartesian product (driver × request) of the episode, so each episode
+    contributes n_drivers × n_requests rows.
+
+    Returns the number of episodes written.
+    """
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(_CSV_HEADER)
+        for ep_id in range(n_episodes):
+            ep = generate_episode(
+                seed=seed_base + ep_id,
+                n_drivers=n_drivers,
+                n_requests=n_requests,
+            )
+            for d in ep.drivers:
+                for r in ep.requests:
+                    w.writerow([
+                        ep_id,
+                        d.id,
+                        f"{d.lat:.6f}",
+                        f"{d.lon:.6f}",
+                        f"{d.speed_mps:.3f}",
+                        r.id,
+                        f"{r.lat:.6f}",
+                        f"{r.lon:.6f}",
+                        f"{r.urgency:.4f}",
+                        r.cruise_id if r.cruise_id is not None else "",
+                        f"{ep.locker_occupancy:.4f}",
+                    ])
+    return n_episodes
+
+
+if __name__ == "__main__":
+    import sys
+
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 10_000
+    out = sys.argv[2] if len(sys.argv) > 2 else "/tmp/synthetic_episodes.csv"
+    print(f"Generating {n} episodes → {out}")
+    export_dataset(out, n_episodes=n)
+    print("Done.")
