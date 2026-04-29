@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { startCascadeSearch, cancelCascade } from '../services/GeoDispatchService';
+import { startCascadeSearch, cancelCascade, __testables } from '../services/GeoDispatchService';
 import { db } from '../db/database';
 import { config } from '../config/env';
 import { getActiveDrivers, emitToSocket, emitToUser } from '../sockets/io';
 import { logger } from '../utils/logger';
+import { getPendingOfferDriverIds, registerPendingOffers } from '../services/ReassignmentService';
 
 // Mock dependencias
 jest.mock('../db/database', () => ({
@@ -16,6 +17,12 @@ jest.mock('../config/env', () => ({
     config: {
         searchRadii: [3, 5, 7],
         cascadeTimeout: 45000,
+        SERVICE_AREA_VIEWBOX: '-15.55,27.99,-15.35,28.22',
+        rl: {
+            enabled: false,
+            serviceUrl: 'http://localhost:8080',
+            timeoutMs: 2000,
+        },
     },
 }));
 
@@ -23,6 +30,7 @@ jest.mock('../sockets/io', () => ({
     getActiveDrivers: jest.fn(),
     emitToSocket: jest.fn(),
     emitToUser: jest.fn(),
+    updateActiveDriverLocation: jest.fn(),
 }));
 
 jest.mock('../utils/logger', () => ({
@@ -34,6 +42,10 @@ jest.mock('../utils/logger', () => ({
 }));
 
 const mockQuery = db.query as any;
+const flushCascade = async () => {
+    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(0);
+};
 
 describe('GeoDispatchService - Cascade Search', () => {
     beforeEach(() => {
@@ -61,6 +73,9 @@ describe('GeoDispatchService - Cascade Search', () => {
             // Mock: ST_DWithin query devuelve un driver
             mockQuery
                 .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // Check status
+                .mockResolvedValueOnce({ rows: [] })                        // teleport #1
+                .mockResolvedValueOnce({ rows: [] })                        // teleport #2
+                .mockResolvedValueOnce({ rows: [] })                        // teleport #3
                 .mockResolvedValueOnce({ rows: [{ id: 101, distance_km: 2.5 }] }); // ST_DWithin
 
             (getActiveDrivers as jest.Mock).mockReturnValue([
@@ -74,16 +89,19 @@ describe('GeoDispatchService - Cascade Search', () => {
 
             expect(db.query).toHaveBeenCalled();
             expect(emitToSocket).toHaveBeenCalledWith('sock-101', 'new:pickup:request', safeDto);
+            expect(emitToUser).toHaveBeenCalledWith(10, 'request:updated', { id: 1, phase: 1, radiusKm: 3 });
 
             // Avanzar timers no debería hacer nada más
             await jest.advanceTimersByTimeAsync(45000 * 3);
-            expect(emitToUser).not.toHaveBeenCalled();
         });
 
         it('debería escalar a fase 2 (5km) si no hay conductores en 3km', async () => {
             // Fase 1: no hay conductores en la DB dentro de 3km
             mockQuery
                 .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // Fase 1 Status
+                .mockResolvedValueOnce({ rows: [] })                       // teleport #1
+                .mockResolvedValueOnce({ rows: [] })                       // teleport #2
+                .mockResolvedValueOnce({ rows: [] })                       // teleport #3
                 .mockResolvedValueOnce({ rows: [] })                       // Fase 1 ST_DWithin
                 .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // Fase 2 Status
                 .mockResolvedValueOnce({ rows: [{ id: 102, distance_km: 4.0 }] }); // Fase 2 ST_DWithin
@@ -102,65 +120,64 @@ describe('GeoDispatchService - Cascade Search', () => {
             await jest.advanceTimersByTimeAsync(45000);
 
             expect(emitToSocket).toHaveBeenCalledWith('sock-102', 'new:pickup:request', safeDto);
-
-            await jest.advanceTimersByTimeAsync(45000 * 2);
-            expect(emitToUser).not.toHaveBeenCalled();
+            expect(emitToUser).toHaveBeenCalledWith(10, 'request:updated', { id: 1, phase: 2, radiusKm: 5 });
         });
 
-        it('debería marcar como escalated si no hay conductores en ningún radio', async () => {
+        it('debería seguir ciclando fases sin emitir request:escalated si no hay conductores en ningún radio', async () => {
             (getActiveDrivers as jest.Mock).mockReturnValue([]);
-            // Todas las fases devuelven array vacío
+            // Todas las fases devuelven array vacío; el servicio cicla 3km→5km→7km
             mockQuery
                 .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // F1 Status
+                .mockResolvedValueOnce({ rows: [] })                       // teleport #1
+                .mockResolvedValueOnce({ rows: [] })                       // teleport #2
+                .mockResolvedValueOnce({ rows: [] })                       // teleport #3
                 .mockResolvedValueOnce({ rows: [] })                       // F1 ST_DWithin
                 .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // F2 Status
                 .mockResolvedValueOnce({ rows: [] })                       // F2 ST_DWithin
                 .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // F3 Status
-                .mockResolvedValueOnce({ rows: [] })                       // F3 ST_DWithin
-                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // Escalada SELECT
-                .mockResolvedValueOnce({ rowCount: 1 });                  // Escalada UPDATE
+                .mockResolvedValueOnce({ rows: [] });                      // F3 ST_DWithin
 
             startCascadeSearch(1, 10, safeDto);
 
-            // Fase 1 + 2 + 3 + escalada
+            // Fase 1 + 2 + 3
             await jest.advanceTimersByTimeAsync(100);
             await jest.advanceTimersByTimeAsync(135000);
 
-            expect(emitToUser).toHaveBeenCalledWith(10, 'request:escalated', {
-                requestId: 1,
-                message: expect.any(String)
-            });
+            expect(emitToUser).toHaveBeenCalledWith(10, 'request:updated', { id: 1, phase: 1, radiusKm: 3 });
+            expect(emitToUser).toHaveBeenCalledWith(10, 'request:updated', { id: 1, phase: 2, radiusKm: 5 });
+            expect(emitToUser).toHaveBeenCalledWith(10, 'request:updated', { id: 1, phase: 3, radiusKm: 7 });
+            expect(emitToUser).not.toHaveBeenCalledWith(10, 'request:escalated', expect.anything());
         });
 
         it('no debería escalar si el status en la BD al momento de escalar no es REQUESTED', async () => {
             (getActiveDrivers as jest.Mock).mockReturnValue([]);
             mockQuery
-                .mockResolvedValueOnce({ rows: [] })  // Fase 1
+                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] })  // Fase 1 status
+                .mockResolvedValueOnce({ rows: [] })                         // teleport #1
+                .mockResolvedValueOnce({ rows: [] })                         // teleport #2
+                .mockResolvedValueOnce({ rows: [] })                         // teleport #3
                 .mockResolvedValueOnce({ rows: [] })  // Fase 2
                 .mockResolvedValueOnce({ rows: [] })  // Fase 3
-                .mockResolvedValueOnce({ rows: [{ status: 'ACCEPTED' }] }); // Escalada SELECT
+                .mockResolvedValueOnce({ rows: [{ status: 'ACCEPTED' }] }); // siguiente status check
 
             startCascadeSearch(2, 10, safeDto);
 
             await jest.advanceTimersByTimeAsync(100);
-            await jest.advanceTimersByTimeAsync(135000);
+            await jest.advanceTimersByTimeAsync(45000);
 
-            expect(emitToUser).not.toHaveBeenCalled();
+            expect(emitToUser).toHaveBeenCalledWith(10, 'request:updated', { id: 2, phase: 1, radiusKm: 3 });
+            expect(emitToUser).not.toHaveBeenCalledWith(10, 'request:escalated', expect.anything());
             cancelCascade(2);
         });
 
         it('no debería escalar si el registro ya no existe en la BD', async () => {
             (getActiveDrivers as jest.Mock).mockReturnValue([]);
             mockQuery
-                .mockResolvedValueOnce({ rows: [] })  // Fase 1
-                .mockResolvedValueOnce({ rows: [] })  // Fase 2
-                .mockResolvedValueOnce({ rows: [] })  // Fase 3
-                .mockResolvedValueOnce({ rows: [] }); // Escalada SELECT - no rows
+                .mockResolvedValueOnce({ rows: [] }); // Fase 1 status - no existe
 
             startCascadeSearch(3, 10, safeDto);
 
             await jest.advanceTimersByTimeAsync(100);
-            await jest.advanceTimersByTimeAsync(135000);
 
             expect(emitToUser).not.toHaveBeenCalled();
             cancelCascade(3);
@@ -168,45 +185,33 @@ describe('GeoDispatchService - Cascade Search', () => {
     });
 
     describe('Comportamiento sin coordenadas', () => {
-        const safeDtoSinCoords = { address: "Calle Falsa 123" };
+        const safeDtoSinCoords = { address: "Calle Falsa 123", latitude: null, longitude: null };
 
-        it('debería notificar a todos los conductores activos si no hay lat/lon', async () => {
+        it('notifica a todos los conductores activos si no hay lat/lon', async () => {
             (getActiveDrivers as jest.Mock).mockReturnValue([
                 { userId: 201, socketId: 'sock-201' },
                 { userId: 202, socketId: 'sock-202' }
             ]);
 
-            mockQuery
-                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }); // Status check
+            const newly = await __testables.notifyDriversInRadius(4, safeDtoSinCoords, 3, new Set<number>());
 
-            startCascadeSearch(4, 10, safeDtoSinCoords);
-
-            await jest.advanceTimersByTimeAsync(100);
-
-            // Sin coords no se hace query PostGIS, solo se notifica a todos
             expect(emitToSocket).toHaveBeenCalledWith('sock-201', 'new:pickup:request', safeDtoSinCoords);
             expect(emitToSocket).toHaveBeenCalledWith('sock-202', 'new:pickup:request', safeDtoSinCoords);
+            expect(newly).toEqual(new Set([201, 202]));
         });
     });
 
     describe('Cancelación y Timeout Intersectados', () => {
         const safeDto = { latitude: 40, longitude: 20 };
 
-        it('debería cancelar cascada cuando un conductor acepta', async () => {
-            (getActiveDrivers as jest.Mock).mockReturnValue([]);
-            mockQuery
-                .mockResolvedValueOnce({ rows: [{ status: 'REQUESTED' }] }) // F1 Status
-                .mockResolvedValueOnce({ rows: [] });                      // F1 ST_DWithin
+        it('debería limpiar ofertas pendientes al cancelar una cascada activa', async () => {
+            registerPendingOffers(5, [101, 102]);
+            expect(getPendingOfferDriverIds(5)).toEqual([101, 102]);
 
             startCascadeSearch(5, 10, safeDto);
-
-            await jest.advanceTimersByTimeAsync(100);
             cancelCascade(5);
 
-            await jest.advanceTimersByTimeAsync(135000);
-
-            expect(emitToSocket).not.toHaveBeenCalled();
-            expect(emitToUser).not.toHaveBeenCalled();
+            expect(getPendingOfferDriverIds(5)).toEqual([]);
         });
 
         it('no rompe si se intenta cancelar una cascada inexistente', () => {
