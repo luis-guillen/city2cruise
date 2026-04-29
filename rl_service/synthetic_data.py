@@ -11,6 +11,7 @@ Used by:
 """
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass
 from typing import Optional
@@ -88,3 +89,42 @@ def generate_episode(
         requests=requests,
         locker_occupancy=rng.uniform(0.1, 0.9),
     )
+
+
+def inject_gps_noise(
+    points: list[tuple[float, float]],
+    seed: int,
+    sigma_m: float = 10.0,
+    outlier_rate: float = 0.02,
+    outlier_min_m: float = 50.0,
+    outlier_max_m: float = 200.0,
+) -> list[tuple[float, float]]:
+    """
+    Apply Gaussian noise (1-sigma = sigma_m metres) plus rare hard outliers
+    to a list of (lat, lon) points. Reproducible for the same seed.
+
+    The displacement is converted from metres to degrees on the fly using a
+    flat-earth approximation per point (good enough at city scale).
+    """
+    rng = random.Random(seed)
+    out: list[tuple[float, float]] = []
+    deg_per_m_lat = 1.0 / 111_320.0
+    for (lat, lon) in points:
+        cos_lat = math.cos(math.radians(lat)) or 1.0
+        deg_per_m_lon = 1.0 / (111_320.0 * cos_lat)
+
+        if rng.random() < outlier_rate:
+            magnitude = rng.uniform(outlier_min_m, outlier_max_m)
+            sign_lat = 1 if rng.random() < 0.5 else -1
+            sign_lon = 1 if rng.random() < 0.5 else -1
+            jitter_lat_m = magnitude * sign_lat
+            jitter_lon_m = magnitude * sign_lon
+        else:
+            jitter_lat_m = rng.gauss(0.0, sigma_m)
+            jitter_lon_m = rng.gauss(0.0, sigma_m)
+
+        out.append((
+            lat + jitter_lat_m * deg_per_m_lat,
+            lon + jitter_lon_m * deg_per_m_lon,
+        ))
+    return out
