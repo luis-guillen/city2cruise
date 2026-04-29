@@ -36,6 +36,15 @@ export const config = {
         return key;
     })(),
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:9100',
+    /**
+     * Hito H-2.1 (S-06): whitelist explícita de orígenes para CORS.
+     * Coma-separada en ALLOWED_ORIGINS. Por defecto cubre los puertos de dev.
+     * En desarrollo se permite además localhost:* y la red 192.168.* (LAN del
+     * móvil de test) — esa relajación NO se aplica en producción.
+     */
+    allowedOrigins: (process.env.ALLOWED_ORIGINS
+        || 'http://localhost:9100,http://localhost:9101,http://localhost:9102,http://localhost:9103')
+        .split(',').map((s) => s.trim()).filter(Boolean),
     simulateRace: process.env.SIMULATE_RACE === 'true',
     searchRadii: [3, 5, 7] as const,   // km: cascade 3km → 5km → 7km
     cascadeTimeout: 17_000,             // ms between each cascade phase (17s for demo)

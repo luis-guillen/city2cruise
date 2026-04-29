@@ -5,6 +5,7 @@ import { Server as HttpServer } from "http";
 import { config } from "../config/env";
 import { verifyToken } from "../auth/jwt";
 import { logger } from "../utils/logger";
+import * as Sentry from "@sentry/node";
 import { db } from "../db/database";
 import { validateAndRecord, GpsValidationResult } from "../services/GpsValidationService";
 import { wsConnections, driversOnline } from "../observability/metrics";
@@ -88,19 +89,30 @@ const maybeRelayCachedRoute = (driverId: number, clientId: number) => {
 export const initSockets = (httpServer: HttpServer) => {
     io = new Server(httpServer, {
         cors: {
+            // Hito H-2.1 (S-06): mismo patrón que el HTTP server — whitelist
+            // explícita + regex sólo en dev, con alerta Sentry en rechazos.
             origin: (origin, callback) => {
-                // Allow: no origin (curl/mobile apps), localhost, LAN IPs in dev
-                if (
-                    !origin ||
-                    origin.startsWith('http://localhost:') ||
-                    (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.'))
-                ) {
-                    callback(null, true);
-                } else if (origin === config.frontendUrl) {
-                    callback(null, true);
-                } else {
-                    callback(new Error('Socket: Not allowed by CORS'));
+                const allow = new Set<string>([config.frontendUrl, ...config.allowedOrigins]);
+                const localPortRegex = /^http:\/\/localhost:(\d{4,5})$/;
+                const lanRegex = /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/;
+
+                if (!origin) return callback(null, true);
+                if (allow.has(origin)) return callback(null, true);
+                if (process.env.NODE_ENV !== 'production' && localPortRegex.test(origin)) {
+                    return callback(null, true);
                 }
+                if (process.env.NODE_ENV !== 'production' && lanRegex.test(origin)) {
+                    return callback(null, true);
+                }
+                try {
+                    Sentry.captureMessage('CORS rechazo (socket)', {
+                        level: 'warning',
+                        extra: { origin },
+                    });
+                } catch {
+                    // Sentry puede no estar inicializado.
+                }
+                return callback(new Error('Socket: Not allowed by CORS'));
             },
             methods: ["GET", "POST"],
             credentials: true,
