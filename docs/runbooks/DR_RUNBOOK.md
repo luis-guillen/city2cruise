@@ -182,6 +182,29 @@ flyctl deploy --image ghcr.io/pablete64/city2cruise-backend:latest \
 Drill de restore en staging: `make staging-apply` desde una rama sucia
 y confirmar que pull -> apply restaura el estado correcto.
 
+## Game Day (Hito H-7.3)
+
+> Esta sección se añade en H-7.3 (Capítulo 7 del programa de remediación).
+
+Cada **trimestre** se ejecuta un ensayo controlado del escenario más
+crítico (DROP SCHEMA + restore PITR) sobre **staging**. La plantilla de
+evidencia vive en
+[`docs/devops/audits/post-h73/GAME_DAY_TEMPLATE.md`](../devops/audits/post-h73/GAME_DAY_TEMPLATE.md).
+
+Procedimiento abreviado:
+
+1. Anunciar el game day en `#city2cruise-oncall` con 24 h de antelación.
+2. Asignar dos roles: **operador** (ejecuta) y **observador** (cronometra
+   y rellena la plantilla).
+3. Ejecutar el escenario y rellenar todos los timestamps.
+4. Calcular RTO real (T7 - T0) y RPO real (T0 - timestamp restaurado).
+   Validar contra los objetivos `<4h` y `<1h`.
+5. Escribir post-mortem (formato blameless) y abrir PR con mejoras al
+   runbook. Mergear antes de cerrar el game day.
+
+**Cadencia esperada:** trimestral (Q1, Q2, Q3, Q4). El primero tras
+H-7.3 marca el baseline.
+
 ## Contactos de escalación
 
 | Rol | Persona | Canal |
