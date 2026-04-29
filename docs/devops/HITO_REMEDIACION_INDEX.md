@@ -51,7 +51,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 
 - [x] H-5.1 — SBOM CycloneDX + Trivy en CI (I-02)
 - [x] H-5.2 — Firma de imágenes cosign (I-02)
-- [ ] H-5.3
+- [x] H-5.3 — Branch protection rules formales
 - [ ] H-5.4
 - [ ] H-5.5
 
