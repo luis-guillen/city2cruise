@@ -322,6 +322,13 @@ export interface PaymentRecord {
   package_size: string;
 }
 
+interface AdminPaymentsResponse {
+  page: number;
+  limit: number;
+  total: number;
+  payments: PaymentRecord[];
+}
+
 /** CLIENT: Create a PaymentIntent for a request (auth-only) */
 export async function createPaymentIntent(requestId: number, packageSize: string): Promise<PaymentIntent> {
   const res = await api.post('/payments/create-intent', { requestId, packageSize });
@@ -342,8 +349,8 @@ export async function getPaymentHistory(): Promise<PaymentRecord[]> {
 
 /** ADMIN: Get all payments (uses admin route with pagination) */
 export async function getAdminPayments(page = 1, limit = 50): Promise<PaymentRecord[]> {
-  const res = await api.get(`/admin/payments?page=${page}&limit=${limit}`);
-  return res.data;
+  const res = await api.get<AdminPaymentsResponse>(`/admin/payments?page=${page}&limit=${limit}`);
+  return res.data.payments;
 }
 
 /** ADMIN: Refund a payment for a request */

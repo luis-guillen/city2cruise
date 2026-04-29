@@ -258,7 +258,7 @@ export default function DriverDashboard() {
                   </p>
 
                   {/* Handshake Code Display */}
-                  {pickup.status === 'CONFIRMATION_PENDING' && pickup.handshakeCode && (
+                  {pickup.status === 'CONFIRMATION_PENDING' && /^\d{4}$/.test(pickup.handshakeCode ?? '') && (
                     <div className="glass rounded-[14px] p-4 text-center mb-3">
                       <p className="ios-caption mb-2">Código para el cliente</p>
                       <div className="flex justify-center gap-2">
