@@ -37,7 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend_tag: ${{ steps.meta_b.outputs.version }}
+      backend_digest: ${{ steps.build_b.outputs.digest }}
       frontend_tag: ${{ steps.meta_f.outputs.version }}
+      frontend_digest: ${{ steps.build_f.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -70,6 +72,7 @@ jobs:
             type=sha,format=short
             type=raw,value=latest,enable={{is_default_branch}}
       - name: Build & push backend
+        id: build_b
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -80,7 +83,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
+          sbom: true
       - name: Build & push frontend
+        id: build_f
         uses: docker/build-push-action@v6
         with:
           context: ./cruise-connect-main
@@ -91,13 +96,127 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
+          sbom: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 1.5. Hito H-5.1 — SBOM (CycloneDX) + Trivy scan HIGH/CRITICAL.
+  #      Bloquea el deploy si la imagen tiene CVEs HIGH+.
+  # ──────────────────────────────────────────────────────────────────────────
+  security-scan:
+    name: Security scan (SBOM + Trivy)
+    needs: build-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Backend ──
+      - name: SBOM backend (CycloneDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_BACKEND }}@${{ needs.build-push.outputs.backend_digest }}
+          format: cyclonedx-json
+          output-file: sbom-backend.cdx.json
+          upload-artifact: true
+          artifact-name: sbom-backend.cdx.json
+      - name: Trivy scan backend (HIGH/CRITICAL → fail)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.IMAGE_BACKEND }}@${{ needs.build-push.outputs.backend_digest }}
+          format: sarif
+          output: trivy-backend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+      - name: Upload Trivy backend SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend.sarif
+          category: trivy-backend
+
+      # ── Frontend ──
+      - name: SBOM frontend (CycloneDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_FRONTEND }}@${{ needs.build-push.outputs.frontend_digest }}
+          format: cyclonedx-json
+          output-file: sbom-frontend.cdx.json
+          upload-artifact: true
+          artifact-name: sbom-frontend.cdx.json
+      - name: Trivy scan frontend (HIGH/CRITICAL → fail)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.IMAGE_FRONTEND }}@${{ needs.build-push.outputs.frontend_digest }}
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+      - name: Upload Trivy frontend SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # 1.6. Hito H-5.2 — Firma cosign keyless (sigstore OIDC).
+  # ──────────────────────────────────────────────────────────────────────────
+  sign:
+    name: Sign images (cosign keyless)
+    needs: build-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # OIDC para keyless signing
+    steps:
+      - uses: sigstore/cosign-installer@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign backend (keyless OIDC)
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          cosign sign --yes \
+            ${{ env.IMAGE_BACKEND }}@${{ needs.build-push.outputs.backend_digest }}
+      - name: Sign frontend (keyless OIDC)
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          cosign sign --yes \
+            ${{ env.IMAGE_FRONTEND }}@${{ needs.build-push.outputs.frontend_digest }}
+      - name: Verify backend signature (smoke)
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.+" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ env.IMAGE_BACKEND }}@${{ needs.build-push.outputs.backend_digest }}
+      - name: Verify frontend signature (smoke)
+        env:
+          COSIGN_EXPERIMENTAL: 'true'
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.+" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ env.IMAGE_FRONTEND }}@${{ needs.build-push.outputs.frontend_digest }}
 
   # ──────────────────────────────────────────────────────────────────────────
   # 2. Deploy a STAGING (automatico en push a main, requiere env protection)
   # ──────────────────────────────────────────────────────────────────────────
   deploy-staging:
     name: Deploy → Staging (Fly.io)
-    needs: build-push
+    needs: [build-push, security-scan, sign]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'staging')
     environment:
@@ -147,7 +266,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   deploy-production:
     name: Deploy → Production (Fly.io) [manual gate]
-    needs: [build-push, deploy-staging]
+    needs: [build-push, security-scan, sign, deploy-staging]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'production')
     environment:
