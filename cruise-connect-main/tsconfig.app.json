@@ -21,7 +21,7 @@
        (se activa en H-3.2) para introducir el cambio en pasos verificables. */
     "strict": true,
     "noImplicitAny": false,
-    "strictNullChecks": false,
+    "strictNullChecks": true,
     "strictFunctionTypes": true,
     "strictBindCallApply": true,
     "alwaysStrict": true,
