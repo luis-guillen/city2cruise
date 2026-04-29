@@ -58,8 +58,8 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 ## Capítulo 6 — Cumplimiento (RGPD, Stripe, accesibilidad)
 
 - [x] H-6.1 — Archivar docs históricos (I-03)
-- [ ] H-6.2
-- [ ] H-6.3
+- [x] H-6.2 — README de raíz reescrito
+- [x] H-6.3 — Diagrama arquitectura actualizado
 - [ ] H-6.4
 
 ## Capítulo 7 — Continuidad (DR, backups)

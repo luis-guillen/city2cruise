@@ -1,0 +1,79 @@
+%% City2Cruise — Diagrama de arquitectura (Hito H-6.3, 2026-04-29)
+%% Render local: npx @mermaid-js/mermaid-cli -i docs/architecture.mmd -o docs/architecture.png
+
+flowchart LR
+
+    %% ── Cliente / dispositivos ──
+    user[Usuario web/móvil]
+    sw[Service Worker<br/>web-push + offline cache]
+
+    %% ── Edge / CDN ──
+    cdn[Cloudflare Pages<br/>SPA estática]
+
+    %% ── Front gateway ──
+    nginx[Nginx 8080<br/>nginx-unprivileged<br/>+ CSP/HSTS/CORS]
+
+    %% ── Aplicación ──
+    spa[React 18 + Vite 6<br/>Tailwind + shadcn/ui]
+    api[Express + Socket.IO<br/>Node 20 alpine no-root]
+    rl[rl_service<br/>FastAPI + RLlib<br/>matching avanzado]
+    twin[digital_twin<br/>FastAPI<br/>simulación operacional]
+
+    %% ── Datos / cache ──
+    pg[(PostgreSQL Neon<br/>+ PostGIS)]
+    redis[(Redis Upstash<br/>cache + pub/sub WS)]
+
+    %% ── Observabilidad ──
+    sentry[Sentry<br/>APM + errors]
+    prom[Prometheus + Grafana<br/>métricas + alerting]
+
+    %% ── Servicios externos ──
+    stripe[Stripe<br/>pagos + webhooks]
+    twilio[Twilio<br/>SMS handshake]
+    push[Web Push<br/>VAPID]
+
+    %% ── Edges ──
+    user --> cdn
+    cdn --> spa
+    spa -- HTTPS --> nginx
+    sw  -- HTTPS --> nginx
+    nginx -- /api/* --> api
+    nginx -- /socket.io/* --> api
+    api -- SQL --> pg
+    api -- KV/PubSub --> redis
+    api -- gRPC/HTTP --> rl
+    api -- HTTP --> twin
+    api -. spans + errors .-> sentry
+    api -. /metrics .-> prom
+    api -- webhook events --> stripe
+    api -- send SMS --> twilio
+    api -- send notification --> push
+    push -. delivers .-> sw
+
+    %% ── DevSecOps (CI/CD) ──
+    subgraph cicd[CI/CD GitHub Actions]
+        direction TB
+        build[build-push GHCR]
+        scan[security-scan<br/>SBOM CycloneDX + Trivy]
+        sign[cosign keyless OIDC]
+        deploy[deploy → Fly.io<br/>staging + prod]
+        build --> scan
+        build --> sign
+        scan --> deploy
+        sign --> deploy
+    end
+    deploy -. blue/green .-> api
+    deploy -. CDN promote .-> cdn
+
+    %% ── Estilo ──
+    classDef ext fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef data fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    classDef app fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef obs fill:#f3e8ff,stroke:#7e22ce,color:#581c87
+    classDef ci fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+
+    class stripe,twilio,push ext
+    class pg,redis data
+    class api,rl,twin,spa,nginx app
+    class sentry,prom obs
+    class build,scan,sign,deploy ci
