@@ -20,7 +20,7 @@
        Mantenemos OFF noImplicitAny (se activa en H-3.3) y strictNullChecks
        (se activa en H-3.2) para introducir el cambio en pasos verificables. */
     "strict": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     "strictBindCallApply": true,
