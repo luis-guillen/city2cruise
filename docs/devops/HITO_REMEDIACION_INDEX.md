@@ -19,7 +19,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 - [x] H-1.1 — Eliminar fallbacks hardcodeados de VAPID (S-01)
 - [x] H-1.2 — Cerrar vulnerabilidades altas en frontend: axios, lodash (S-02)
 - [x] H-1.3 — Contenedores no-root + HEALTHCHECK por imagen (S-03)
-- [ ] H-1.4 — Cabeceras de seguridad en Nginx frontend (S-04)
+- [x] H-1.4 — Cabeceras de seguridad en Nginx frontend (S-04)
 - [x] H-1.5 — Limpiar IP local hardcodeada en logs de arranque (S-07)
 
 ## Capítulo 2 — Hardening (post-launch)
