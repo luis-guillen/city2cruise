@@ -21,6 +21,8 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      // Hito H-3.3 (S-10): prohibir 'any' explícito.
+      "@typescript-eslint/no-explicit-any": "error",
       // Hito H-2.2 (S-08): bloquear console.log en código de producción.
       // console.warn / console.error siguen permitidos. Para debug usar el
       // helper @/utils/logger (logger.debug / logger.info en dev, Sentry en
