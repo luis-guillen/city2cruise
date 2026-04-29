@@ -14,6 +14,7 @@ via a lock to prevent parallel runs corrupting the model weights.
 from __future__ import annotations
 
 import os
+import json
 import threading
 import time
 from datetime import datetime, timezone
@@ -35,12 +36,13 @@ from .schemas import AssignmentResult, StateTensorInput
 # ─── Model persistence ────────────────────────────────────────────────────────
 
 MODEL_PATH = Path(os.getenv("RL_MODEL_PATH", "/tmp/cruise_dispatch_ppo"))
+MODEL_META_PATH = Path(f"{MODEL_PATH}.meta.json")
 
 
 # ─── Agent ────────────────────────────────────────────────────────────────────
 
 class RLAgent:
-    MODEL_VERSION = "ppo-v1"
+    MODEL_VERSION = "ppo-v2"
 
     def __init__(self) -> None:
         # Defer heavy SB3 imports to constructor so the module can be imported
@@ -58,7 +60,7 @@ class RLAgent:
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    def _make_env(self, n_envs: int = 4):
+    def _make_env(self, n_envs: int = 8):
         return self._make_vec_env(
             lambda: CruiseDispatchEnv(n_drivers=8, n_requests=12, max_steps=20),
             n_envs=n_envs,
@@ -66,26 +68,35 @@ class RLAgent:
 
     def _load_or_create(self):
         path = Path(f"{MODEL_PATH}.zip")
-        if path.exists():
+        if path.exists() and self._is_compatible_checkpoint():
             model = self._PPO.load(str(MODEL_PATH), env=self._make_env())
             print(f"[RLAgent] Loaded model from {MODEL_PATH}.zip")
         else:
             model = self._PPO(
                 policy="MlpPolicy",
-                env=self._make_env(),
+                env=self._make_env(n_envs=8),
                 verbose=0,
-                learning_rate=3e-4,
-                n_steps=2048,
-                batch_size=64,
+                learning_rate=1e-4,
+                n_steps=1024,
+                batch_size=256,
                 n_epochs=10,
-                gamma=0.95,     # shorter horizon — dispatch is a fast-cycle problem
+                gamma=0.99,
                 gae_lambda=0.95,
                 clip_range=0.2,
-                ent_coef=0.01,  # light entropy bonus → explores alternative drivers
-                policy_kwargs={"net_arch": [128, 128]},
+                ent_coef=0.005,
+                policy_kwargs={"net_arch": [256, 256]},
             )
             print("[RLAgent] Initialised untrained PPO model")
         return model
+
+    def _is_compatible_checkpoint(self) -> bool:
+        if not MODEL_META_PATH.exists():
+            return False
+        try:
+            payload = json.loads(MODEL_META_PATH.read_text())
+        except Exception:
+            return False
+        return payload.get("modelVersion") == self.MODEL_VERSION
 
     # ── Training ──────────────────────────────────────────────────────────────
 
@@ -104,6 +115,7 @@ class RLAgent:
             )
             MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
             self.model.save(str(MODEL_PATH))
+            MODEL_META_PATH.write_text(json.dumps({"modelVersion": self.MODEL_VERSION}))
             elapsed = time.monotonic() - start
             self._total_timesteps += total_timesteps
             self._last_trained_at = datetime.now(timezone.utc).isoformat()

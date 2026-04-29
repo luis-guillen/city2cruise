@@ -69,17 +69,6 @@ def test_reset_latencia_p95_sub_10ms(env):
     assert p95 < 10, f"reset p95={p95:.2f}ms supera 10ms"
 
 
-@pytest.mark.xfail(
-    reason=(
-        "REALITY GAP DETECTADO Hito 6.5.4: gym_env usa random.uniform global "
-        "en lugar de self.np_random — observations NO son reproducibles "
-        "entre instancias con mismo seed. Bug abierto: rl_service refactor "
-        "para usar self.np_random consistentemente. Esto degrada la "
-        "reproducibilidad de los entrenamientos y debe arreglarse antes de "
-        "validar mejoras de la policy en CI."
-    ),
-    strict=False,
-)
 def test_observation_consistente_entre_seeds_iguales():
     """Dos resets con mismo seed → MISMO observation tensor.
     Reproducibilidad es CRÍTICA para entrenar y comparar agentes."""

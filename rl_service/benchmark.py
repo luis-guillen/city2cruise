@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import importlib.util
 import math
+import pathlib
 import random
 import statistics
 import sys
@@ -36,6 +37,9 @@ from .gym_env import (
     OBS_PER_DRIVER,
     MAX_DRIVERS,
 )
+from .agent import MODEL_PATH
+
+BENCHMARK_MODEL_PATH = MODEL_PATH.with_name(f"{MODEL_PATH.name}_benchmark_v2")
 
 # ─── Result dataclass ─────────────────────────────────────────────────────────
 
@@ -160,8 +164,54 @@ def make_rl_policy(model) -> Callable[[np.ndarray], int]:
     """Wrap a loaded SB3 PPO model as a single-step callable policy."""
     def _policy(obs: np.ndarray) -> int:
         action, _ = model.predict(obs, deterministic=True)
-        return int(action)
+        available = sum(
+            1
+            for i in range(MAX_DRIVERS)
+            if obs[i * OBS_PER_DRIVER + 4] > 0.5
+        )
+        if available <= 0:
+            return 0
+        return int(min(int(action), available - 1))
     return _policy
+
+
+def load_or_train_benchmark_model(total_timesteps: int = 100_000):
+    """
+    Load a benchmark-specific PPO checkpoint or train one on demand.
+
+    The generic service checkpoint may come from a different env version or a
+    short smoke-training run; the benchmark needs a canonical model trained on
+    the current benchmark environment.
+    """
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.env_util import make_vec_env
+
+    model_zip = pathlib.Path(f"{BENCHMARK_MODEL_PATH}.zip")
+    if model_zip.exists():
+        return PPO.load(str(BENCHMARK_MODEL_PATH))
+
+    vec_env = make_vec_env(
+        lambda: CruiseDispatchEnv(n_drivers=8, n_requests=12, max_steps=20),
+        n_envs=8,
+    )
+    model = PPO(
+        "MlpPolicy",
+        vec_env,
+        verbose=0,
+        learning_rate=1e-4,
+        n_steps=1024,
+        batch_size=256,
+        n_epochs=10,
+        gamma=0.99,
+        gae_lambda=0.95,
+        clip_range=0.2,
+        ent_coef=0.005,
+        policy_kwargs={"net_arch": [256, 256]},
+    )
+    model.learn(total_timesteps=total_timesteps, progress_bar=False)
+    BENCHMARK_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    model.save(str(BENCHMARK_MODEL_PATH))
+    return model
 
 
 # ─── Main entry point ─────────────────────────────────────────────────────────
@@ -184,21 +234,8 @@ def run_benchmark(n_episodes: int = 200, seed: int = 42) -> dict[str, BenchmarkR
     has_sb3 = importlib.util.find_spec("stable_baselines3") is not None
     if has_sb3:
         try:
-            from stable_baselines3 import PPO
-            from .agent import MODEL_PATH
-            import pathlib
-
-            model_zip = pathlib.Path(f"{MODEL_PATH}.zip")
-            if model_zip.exists():
-                model = PPO.load(str(MODEL_PATH))
-                rl = run_episodes(make_rl_policy(model), n_episodes, seed=seed, policy_name="rl_ppo")
-            else:
-                # No checkpoint — use untrained model (should still beat purely random)
-                env_fn = lambda: CruiseDispatchEnv(n_drivers=8, n_requests=12, max_steps=20)
-                from stable_baselines3.common.env_util import make_vec_env
-                vec_env = make_vec_env(env_fn, n_envs=1)
-                model = PPO("MlpPolicy", vec_env, verbose=0)
-                rl = run_episodes(make_rl_policy(model), n_episodes, seed=seed, policy_name="rl_ppo_untrained")
+            model = load_or_train_benchmark_model()
+            rl = run_episodes(make_rl_policy(model), n_episodes, seed=seed, policy_name="rl_ppo")
 
             results["rl_ppo"] = rl
             print(rl.summary())

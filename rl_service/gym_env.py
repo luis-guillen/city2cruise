@@ -4,8 +4,9 @@ CruiseDispatchEnv — Gymnasium environment for the driver-dispatch RL problem.
 Problem framing
 ───────────────
 At each step the agent picks one available driver (0-indexed) to handle the
-most-urgent pending pickup request. The episode ends when every request is
-covered or no driver remains free.
+most-urgent pending pickup request. The chosen driver is then repositioned to
+that request location, so each action affects future ETAs. The episode ends
+when every request is covered.
 
 Observation  Box(shape=(OBS_DIM=69,), float32, clipped to [0,1])
 Action       Discrete(MAX_DRIVERS=10)
@@ -20,7 +21,6 @@ from __future__ import annotations
 
 import math
 import random
-import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -107,6 +107,7 @@ class TensorEncoder:
         locker_occupancy: float,
         max_urgency: float,
         active_count_norm: float,
+        time_of_day_norm: Optional[float] = None,
     ) -> np.ndarray:
         obs = np.zeros(OBS_DIM, dtype=np.float32)
 
@@ -126,12 +127,12 @@ class TensorEncoder:
             obs[base + 2] = ccount
 
         global_offset = cluster_offset + MAX_CLUSTERS * OBS_PER_CLUSTER
-        t = time.localtime()
-        time_of_day = (t.tm_hour * 60 + t.tm_min) / 1440.0
+        if time_of_day_norm is None:
+            time_of_day_norm = 0.0
         obs[global_offset + 0] = float(np.clip(locker_occupancy, 0.0, 1.0))
         obs[global_offset + 1] = float(np.clip(max_urgency, 0.0, 1.0))
         obs[global_offset + 2] = float(np.clip(active_count_norm, 0.0, 1.0))
-        obs[global_offset + 3] = float(time_of_day)
+        obs[global_offset + 3] = float(np.clip(time_of_day_norm, 0.0, 1.0))
 
         return obs
 
@@ -174,6 +175,7 @@ class CruiseDispatchEnv(gym.Env):
         self._step_count = 0
         self._locker_occ = 0.5
         self._episode_reward = 0.0
+        self._sim_minutes = 0
 
     # ── Gym interface ──────────────────────────────────────────────────────────
 
@@ -185,7 +187,7 @@ class CruiseDispatchEnv(gym.Env):
     ) -> tuple[np.ndarray, dict]:
         super().reset(seed=seed)
 
-        n_d = self.np_random.integers(2, self.n_drivers + 1)
+        n_d = self.n_drivers
         n_r = self.np_random.integers(1, self.n_requests + 1)
 
         self._drivers = self._gen_drivers(int(n_d))
@@ -197,6 +199,7 @@ class CruiseDispatchEnv(gym.Env):
         self._step_count = 0
         self._locker_occ = float(self.np_random.uniform(0.1, 0.9))
         self._episode_reward = 0.0
+        self._sim_minutes = int(self.np_random.integers(0, 1440))
 
         return self._build_obs(), {}
 
@@ -222,12 +225,16 @@ class CruiseDispatchEnv(gym.Env):
                 reward += 30.0  # urgent request handled fast
 
             driver.eta_norm = eta_norm
-            driver.is_available = False
+            driver.lat = target.lat
+            driver.lon = target.lon
+            driver.lat_norm = norm_lat(target.lat)
+            driver.lon_norm = norm_lon(target.lon)
             self._pending.pop(0)
+            self._sim_minutes = (self._sim_minutes + max(1, int(math.ceil(eta_s / 60.0)))) % 1440
 
         self._episode_reward += reward
 
-        done = not self._pending or not any(d.is_available for d in self._drivers)
+        done = not self._pending
         truncated = self._step_count >= self.max_steps
 
         return self._build_obs(), reward, done, truncated, {
@@ -254,7 +261,12 @@ class CruiseDispatchEnv(gym.Env):
         clusters = self._pseudo_clusters()
 
         return TensorEncoder.encode(
-            self._drivers, clusters, self._locker_occ, max_urg, active_norm
+            self._drivers,
+            clusters,
+            self._locker_occ,
+            max_urg,
+            active_norm,
+            time_of_day_norm=self._sim_minutes / 1440.0,
         )
 
     def _pseudo_clusters(self) -> list[tuple[float, float, float]]:
@@ -267,12 +279,12 @@ class CruiseDispatchEnv(gym.Env):
 
     # ── Episode generators ────────────────────────────────────────────────────
 
-    @staticmethod
-    def _gen_drivers(n: int) -> list[SimDriver]:
+    def _gen_drivers(self, n: int) -> list[SimDriver]:
         drivers = []
         for i in range(n):
-            lat, lon = random_pos()
-            spd = random.uniform(3.0, 12.0)
+            lat = float(self.np_random.uniform(LAT_MIN, LAT_MAX))
+            lon = float(self.np_random.uniform(LON_MIN, LON_MAX))
+            spd = float(self.np_random.uniform(3.0, 12.0))
             drivers.append(SimDriver(
                 driver_id=i,
                 lat=lat, lon=lon,
@@ -283,16 +295,16 @@ class CruiseDispatchEnv(gym.Env):
             ))
         return drivers
 
-    @staticmethod
-    def _gen_requests(n: int) -> list[SimRequest]:
+    def _gen_requests(self, n: int) -> list[SimRequest]:
         requests = []
         for i in range(n):
-            lat, lon = random_pos()
+            lat = float(self.np_random.uniform(LAT_MIN, LAT_MAX))
+            lon = float(self.np_random.uniform(LON_MIN, LON_MAX))
             # ~30 % of requests are cruise-urgent
             urgency = (
-                random.uniform(0.65, 1.0)
-                if random.random() < 0.3
-                else random.uniform(0.0, 0.5)
+                float(self.np_random.uniform(0.65, 1.0))
+                if float(self.np_random.random()) < 0.3
+                else float(self.np_random.uniform(0.0, 0.5))
             )
             requests.append(SimRequest(request_id=i, lat=lat, lon=lon, urgency=urgency))
         return requests
