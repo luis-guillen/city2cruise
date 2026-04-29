@@ -37,6 +37,7 @@ export function useDriverGeoLocation(
 
     useEffect(() => {
         if (!enabled) return;
+        const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
 
         // Hito 4.2.2 — throttle de la emision al servidor a 1 update/seg
         // (la posicion local se sigue actualizando para mantener UI suave).
@@ -50,6 +51,16 @@ export function useDriverGeoLocation(
             setOutsideZone(!isInsideServiceArea(lat, lon));
             emitToServer(lat, lon);
         };
+
+        if (isDemo) {
+            const fb = getFallback();
+            setError(false);
+            setOutsideZone(false);
+            emit(fb[0], fb[1]);
+            return () => {
+                emitToServer.cancel();
+            };
+        }
 
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -104,7 +115,7 @@ export function useDriverGeoLocation(
             }
             emitToServer.cancel();
         };
-    }, [enabled]);
+    }, [enabled, fallbackCoords, _isDemoAccount]);
 
     return { location, error, outsideZone };
 }

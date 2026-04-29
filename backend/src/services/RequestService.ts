@@ -547,6 +547,7 @@ export async function getClientCurrent(params: { userId: number }) {
     if (!row) return null;
 
     const dto = buildPickupRequestDTO(row);
+    dto.handshakeCode = null;
     if (dto.status !== 'DEPOSITED') {
         dto.lockerCode = null;
     } else {
@@ -567,6 +568,7 @@ export async function getClientHistory(params: { userId: number }) {
 
     return rows.map((row: any) => {
         const dto = buildPickupRequestDTO(row);
+        dto.handshakeCode = null;
         if (dto.status !== 'DEPOSITED') {
             dto.lockerCode = null;
         } else {
@@ -634,5 +636,16 @@ export async function getDriverPickups(params: { driverId: number }) {
         ORDER BY r.updated_at DESC
     `, [params.driverId]);
 
-    return rows.map((row: any) => buildPickupRequestDTO(row));
+    return rows.map((row: any) => {
+        const dto = buildPickupRequestDTO(row);
+        dto.handshakeCode = dto.status === 'CONFIRMATION_PENDING'
+            ? decryptField(dto.handshakeCode)
+            : null;
+        if (dto.status !== 'DEPOSITED') {
+            dto.lockerCode = null;
+        } else {
+            dto.lockerCode = decryptField(dto.lockerCode);
+        }
+        return dto;
+    });
 }
