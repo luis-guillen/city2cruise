@@ -75,7 +75,6 @@ async function notifyDriversInRadius(
         newly.add(driver.userId);
         const dist = distanceMap.get(driver.userId) ?? 0;
         const inRadius = nearbyDriverIds.has(driver.userId);
-        console.log(`[CASCADE] Notificando a Driver ${driver.userId} (Socket: ${driver.socketId}) a ${dist.toFixed(2)}km`);
         logger.info(
             { requestId, driverId: driver.userId, distKm: parseFloat(dist.toFixed(2)), radiusKm, mode: inRadius ? 'geo' : 'no-gps-fallback', rlRanked: rlRankings.length > 0 },
             'CASCADE driver notified'

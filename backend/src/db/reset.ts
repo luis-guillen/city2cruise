@@ -7,18 +7,18 @@
 import { pool, initDB } from './database';
 
 async function main() {
-    console.log('[Reset] Iniciando reseteo de la base de datos...');
+    console.error('[Reset] Iniciando reseteo de la base de datos...');
 
     const client = await pool.connect();
     try {
         // Eliminar y recrear schema (borra TODAS las tablas)
         await client.query('DROP SCHEMA public CASCADE');
         await client.query('CREATE SCHEMA public');
-        console.log('[Reset] Schema público recreado.');
+        console.error('[Reset] Schema público recreado.');
 
         // Reinicializar (creará tablas y ejecutará seeder)
         await initDB();
-        console.log('[Reset] Base de datos regenerada con éxito.');
+        console.error('[Reset] Base de datos regenerada con éxito.');
     } finally {
         client.release();
         await pool.end();

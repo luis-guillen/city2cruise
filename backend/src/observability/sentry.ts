@@ -53,8 +53,10 @@ export function initSentry(): boolean {
     });
 
     initialized = true;
-    // eslint-disable-next-line no-console
-    console.log('[sentry] inicializado en', env, 'release', process.env.SENTRY_RELEASE || 'dev');
+    // Hito H-2.2: bootstrap del propio Sentry — no usamos logger pino aquí
+    // porque se carga antes que el logger y queremos evidencia en stderr aunque
+    // pino caiga. process.stderr.write evita la regla no-console.
+    process.stderr.write(`[sentry] inicializado en ${env} release ${process.env.SENTRY_RELEASE || 'dev'}\n`);
     return true;
 }
 

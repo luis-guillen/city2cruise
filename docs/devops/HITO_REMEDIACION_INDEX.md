@@ -25,7 +25,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 ## Capítulo 2 — Hardening (post-launch)
 
 - [x] H-2.1 — CORS hardening + Sentry alert (S-06)
-- [ ] H-2.2
+- [x] H-2.2 — Migrar console.log al logger estructurado (S-08)
 - [x] H-2.3 — Limpieza de archivos residuales (S-09)
 - [x] H-2.4 — ESLint backend con no-floating-promises (I-01)
 - [ ] H-2.5

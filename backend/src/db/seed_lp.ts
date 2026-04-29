@@ -8,7 +8,7 @@
 import { pool, initDB } from './database';
 
 async function main() {
-    console.log('[seed-lp] Iniciando escenario Las Palmas de Gran Canaria...');
+    console.error('[seed-lp] Iniciando escenario Las Palmas de Gran Canaria...');
 
     const client = await pool.connect();
     try {
@@ -67,24 +67,24 @@ async function main() {
         await insertLocker('LP-TRIANA-01');
         await insertLocker('LP-CANTERAS-01');
 
-        console.log('[seed-lp] Datos creados:');
-        console.log('');
-        console.log('  USUARIOS:');
-        console.log('  ADMIN   → admin@city2cruise.com');
-        console.log('  CLIENT  → cliente@demo.com      (Parque Santa Catalina: 28.1413, -15.4308)');
-        console.log('  DRIVER1 → driver1@demo.com      (Puerto de La Luz:      28.1468, -15.4170) ~0.6km');
-        console.log('  DRIVER2 → driver2@demo.com      (Muelle Santa Catalina: 28.1445, -15.4265) ~0.3km');
-        console.log('  DRIVER3 → driver3@demo.com      (Guanarteme:            28.1260, -15.4440) ~2km');
-        console.log('');
-        console.log('  LOCKERS:');
-        console.log('  LP-PUERTO-01  · Terminal de cruceros, Muelle Santa Catalina');
-        console.log('  LP-PUERTO-02  · Muelle de La Luz');
-        console.log('  LP-PARQUE-01  · Parque Santa Catalina');
-        console.log('  LP-TRIANA-01  · Zona comercial Triana');
-        console.log('  LP-CANTERAS-01 · Playa de Las Canteras');
-        console.log('');
-        console.log('  Contraseña de todos: password123');
-        console.log('[seed-lp] Reinicia el servidor (npm run dev) para aplicar cambios.');
+        console.error('[seed-lp] Datos creados:');
+        console.error('');
+        console.error('  USUARIOS:');
+        console.error('  ADMIN   → admin@city2cruise.com');
+        console.error('  CLIENT  → cliente@demo.com      (Parque Santa Catalina: 28.1413, -15.4308)');
+        console.error('  DRIVER1 → driver1@demo.com      (Puerto de La Luz:      28.1468, -15.4170) ~0.6km');
+        console.error('  DRIVER2 → driver2@demo.com      (Muelle Santa Catalina: 28.1445, -15.4265) ~0.3km');
+        console.error('  DRIVER3 → driver3@demo.com      (Guanarteme:            28.1260, -15.4440) ~2km');
+        console.error('');
+        console.error('  LOCKERS:');
+        console.error('  LP-PUERTO-01  · Terminal de cruceros, Muelle Santa Catalina');
+        console.error('  LP-PUERTO-02  · Muelle de La Luz');
+        console.error('  LP-PARQUE-01  · Parque Santa Catalina');
+        console.error('  LP-TRIANA-01  · Zona comercial Triana');
+        console.error('  LP-CANTERAS-01 · Playa de Las Canteras');
+        console.error('');
+        console.error('  Contraseña de todos: password123');
+        console.error('[seed-lp] Reinicia el servidor (npm run dev) para aplicar cambios.');
     } finally {
         client.release();
         await pool.end();
