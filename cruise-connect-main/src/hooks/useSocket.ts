@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { socket } from '../socket';
 import { useApp } from '../context/AppContext';
+import { logger } from '@/utils/logger';
 
 export const useSocket = () => {
     const { role, refreshData, token } = useApp();
@@ -19,22 +20,22 @@ export const useSocket = () => {
         socket.connect();
 
         socket.on('request:new', (data) => {
-            console.log('Socket event: request:new', data);
+            logger.debug('Socket event: request:new', data);
             refreshData();
         });
 
         socket.on('new:pickup:request', (data) => {
-            console.log('Socket event: new:pickup:request', data);
+            logger.debug('Socket event: new:pickup:request', data);
             refreshData();
         });
 
         socket.on('request:updated', (data) => {
-            console.log('Socket event: request:updated', data);
+            logger.debug('Socket event: request:updated', data);
             refreshData();
         });
 
         socket.on('locker:ready', (data) => {
-            console.log('Socket event: locker:ready', data);
+            logger.debug('Socket event: locker:ready', data);
             if (role === 'CLIENT') {
                 window.dispatchEvent(new CustomEvent('locker:ready:received', { detail: data }));
                 refreshData();
@@ -42,7 +43,7 @@ export const useSocket = () => {
         });
 
         socket.on('notification:new', (data) => {
-            console.log('Socket event: notification:new', data);
+            logger.debug('Socket event: notification:new', data);
             if (role === 'CLIENT') {
                 window.dispatchEvent(new CustomEvent('notification:new:received', { detail: data }));
             }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '../db/database';
 import { authMiddleware, requireRole } from '../auth/middleware';
 import { sendError } from '../utils/errors';
+import { logger } from '../utils/logger';
 
 const merchantsRouter = Router();
 
@@ -48,7 +49,7 @@ merchantsRouter.post('/register', authMiddleware, requireRole('ADMIN'), async (r
         `, [data.business_name, data.email, data.phone ?? null, data.address ?? null,
             lat, lon, now, now]);
 
-        console.log(`[MERCHANT] Registered: ${data.business_name} <${data.email}>`);
+        logger.info({ business_name: data.business_name, email: data.email }, '[MERCHANT] Registered');
         res.status(201).json(merchant);
     } catch (error) {
         if (error instanceof z.ZodError) {
@@ -127,7 +128,7 @@ merchantsRouter.put('/:id/status', authMiddleware, requireRole('ADMIN'), async (
         }
 
         const { rows: [merchant] } = await db.query('SELECT * FROM merchants WHERE id = $1', [id]);
-        console.log(`[MERCHANT] Status updated: id=${id} → ${integration_status}`);
+        logger.info({ id, integration_status }, '[MERCHANT] Status updated');
         res.json(merchant);
     } catch (error) {
         if (error instanceof z.ZodError) {

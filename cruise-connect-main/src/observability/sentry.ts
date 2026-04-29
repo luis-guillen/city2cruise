@@ -16,7 +16,6 @@ export function initSentry(): boolean {
 
     if (!dsn) {
         if (env === 'production' || env === 'staging') {
-            // eslint-disable-next-line no-console
             console.warn('[sentry] VITE_SENTRY_DSN no definido en', env);
         }
         return false;

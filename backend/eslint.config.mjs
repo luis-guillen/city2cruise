@@ -29,10 +29,9 @@ export default tseslint.config(
             '@typescript-eslint/no-floating-promises': 'error',
             '@typescript-eslint/no-misused-promises': 'error',
             '@typescript-eslint/no-explicit-any': 'warn',
-            // Hito H-2.4: la regla queda en 'warn' porque las 33 incidencias
-            // existentes se barren en el codemod de H-2.2. Tras H-2.2 se
-            // sube a 'error'.
-            'no-console': ['warn', { allow: ['warn', 'error'] }],
+            // Hito H-2.2 (S-08): tras el codemod, no-console pasa a error.
+            // Sólo console.warn y console.error siguen permitidos.
+            'no-console': ['error', { allow: ['warn', 'error'] }],
         },
     },
 );

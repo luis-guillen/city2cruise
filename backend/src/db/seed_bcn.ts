@@ -7,7 +7,7 @@
 import { pool, initDB } from './database';
 
 async function main() {
-    console.log('[seed-bcn] Iniciando escenario de prueba Barcelona...');
+    console.error('[seed-bcn] Iniciando escenario de prueba Barcelona...');
 
     const client = await pool.connect();
     try {
@@ -42,13 +42,13 @@ async function main() {
         // DRIVER 3: ~8km (Badalona) – lejos
         await insertUser('Driver Tres', 'driver3@demo.com', 'DRIVER', 41.4500, 2.2450);
 
-        console.log('[seed-bcn] Usuarios Barcelona creados:');
-        console.log('  CLIENT  → rambla@demo.com  (lat: 41.3809, lon: 2.1730)');
-        console.log('  DRIVER1 → driver1@demo.com (lat: 41.3870, lon: 2.1700) ~0.7km');
-        console.log('  DRIVER2 → driver2@demo.com (lat: 41.3918, lon: 2.1801) ~1.3km');
-        console.log('  DRIVER3 → driver3@demo.com (lat: 41.4500, lon: 2.2450) ~8km [FUERA]');
-        console.log('\n[seed-bcn] Contraseña de todos: password123');
-        console.log('[seed-bcn] Reinicia el servidor (npm run dev) para aplicar cambios.');
+        console.error('[seed-bcn] Usuarios Barcelona creados:');
+        console.error('  CLIENT  → rambla@demo.com  (lat: 41.3809, lon: 2.1730)');
+        console.error('  DRIVER1 → driver1@demo.com (lat: 41.3870, lon: 2.1700) ~0.7km');
+        console.error('  DRIVER2 → driver2@demo.com (lat: 41.3918, lon: 2.1801) ~1.3km');
+        console.error('  DRIVER3 → driver3@demo.com (lat: 41.4500, lon: 2.2450) ~8km [FUERA]');
+        console.error('\n[seed-bcn] Contraseña de todos: password123');
+        console.error('[seed-bcn] Reinicia el servidor (npm run dev) para aplicar cambios.');
     } finally {
         client.release();
         await pool.end();
