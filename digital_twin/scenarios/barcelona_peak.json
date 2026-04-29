@@ -1,0 +1,33 @@
+{
+  "name": "barcelona_peak",
+  "description": "Pico portuario Barcelona con alta presion de cruceros",
+  "lockers": 28,
+  "drivers": 18,
+  "duration_hours": 10,
+  "cruises": [
+    {
+      "vessel_name": "Wonder of the Seas",
+      "scheduled_arrival": "2026-07-15T06:30:00Z",
+      "all_aboard": "2026-07-15T17:00:00Z",
+      "capacity": 6988
+    },
+    {
+      "vessel_name": "MSC World Europa",
+      "scheduled_arrival": "2026-07-15T07:15:00Z",
+      "all_aboard": "2026-07-15T18:30:00Z",
+      "capacity": 6334
+    },
+    {
+      "vessel_name": "Costa Toscana",
+      "scheduled_arrival": "2026-07-15T08:00:00Z",
+      "all_aboard": "2026-07-15T19:00:00Z",
+      "capacity": 6554
+    },
+    {
+      "vessel_name": "Norwegian Prima",
+      "scheduled_arrival": "2026-07-15T10:30:00Z",
+      "all_aboard": "2026-07-15T21:30:00Z",
+      "capacity": 3215
+    }
+  ]
+}

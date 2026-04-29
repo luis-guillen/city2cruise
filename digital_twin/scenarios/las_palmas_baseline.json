@@ -1,0 +1,27 @@
+{
+  "name": "las_palmas_baseline",
+  "description": "Dia tipico Las Palmas con 3 cruceros",
+  "lockers": 20,
+  "drivers": 15,
+  "duration_hours": 8,
+  "cruises": [
+    {
+      "vessel_name": "AIDAnova",
+      "scheduled_arrival": "2026-04-29T07:30:00Z",
+      "all_aboard": "2026-04-29T16:30:00Z",
+      "capacity": 6300
+    },
+    {
+      "vessel_name": "MSC Bellissima",
+      "scheduled_arrival": "2026-04-29T09:00:00Z",
+      "all_aboard": "2026-04-29T18:00:00Z",
+      "capacity": 4500
+    },
+    {
+      "vessel_name": "Mein Schiff 6",
+      "scheduled_arrival": "2026-04-29T11:30:00Z",
+      "all_aboard": "2026-04-29T20:00:00Z",
+      "capacity": 2500
+    }
+  ]
+}
