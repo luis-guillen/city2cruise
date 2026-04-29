@@ -4,7 +4,8 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@city2cruise/api-types": ["../backend/src/schemas"]
     },
     "noImplicitAny": true,
     "noUnusedParameters": false,

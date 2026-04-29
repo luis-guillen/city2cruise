@@ -32,7 +32,8 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@city2cruise/api-types": ["../backend/src/schemas"]
     }
   },
   "include": ["src"]

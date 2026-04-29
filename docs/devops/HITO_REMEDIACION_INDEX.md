@@ -37,7 +37,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 - [x] H-3.1 — Activar strict modo transición (S-10 1/4)
 - [x] H-3.2 — Activar strictNullChecks (S-10 2/4)
 - [x] H-3.3 — Erradicar any + noImplicitAny (S-10 3/4)
-- [ ] H-3.4
+- [x] H-3.4 — Compartir tipos backend ↔ frontend (S-10 4/4)
 - [ ] H-3.5
 
 ## Capítulo 4 — Resiliencia y SLO
