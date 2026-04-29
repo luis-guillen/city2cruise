@@ -27,7 +27,7 @@ export interface PickupRequestDTO {
     latitude: number | null;
     longitude: number | null;
     packageSize: 'SMALL' | 'MEDIUM' | 'LARGE';
-    status: 'REQUESTED' | 'ACCEPTED' | 'CONFIRMATION_PENDING' | 'IN_PROGRESS' | 'DEPOSITED' | 'PICKED_UP';
+    status: 'REQUESTED' | 'ACCEPTED' | 'CONFIRMATION_PENDING' | 'IN_PROGRESS' | 'DEPOSITED' | 'PICKED_UP' | 'CANCELLED';
     handshakeCode: string | null;
     handshakeExpiresAt: string | null;
     clientConfirmed: boolean;

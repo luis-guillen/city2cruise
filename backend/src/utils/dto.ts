@@ -15,7 +15,7 @@ export const buildPickupRequestDTO = (row: any): PickupRequestDTO => {
         latitude: row.latitude ?? null,
         longitude: row.longitude ?? null,
         packageSize: row.package_size || 'SMALL',
-        status: row.status as 'REQUESTED' | 'ACCEPTED' | 'CONFIRMATION_PENDING' | 'IN_PROGRESS' | 'DEPOSITED' | 'PICKED_UP',
+        status: row.status as 'REQUESTED' | 'ACCEPTED' | 'CONFIRMATION_PENDING' | 'IN_PROGRESS' | 'DEPOSITED' | 'PICKED_UP' | 'CANCELLED',
         handshakeCode: row.handshake_code ?? null,
         handshakeExpiresAt: row.handshake_expires_at ?? null,
         clientConfirmed: row.client_confirmed === true || row.client_confirmed === 1,

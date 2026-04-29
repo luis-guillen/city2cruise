@@ -6,6 +6,7 @@ import { sendError } from '../utils/errors';
 import { getAuditTrail, verifyCustodyChain } from '../services/AuditService';
 import { getActiveDrivers } from '../sockets/io';
 import { getRequestCustodyProof, verifyRequestCustodyProof } from '../services/CustodyLedgerService';
+import interventionRouter from './admin/intervention';
 
 const adminRouter = Router();
 
@@ -315,5 +316,7 @@ adminRouter.get('/payments', authMiddleware, requireRole('ADMIN'), async (req, r
         sendError(res, 500, 'INTERNAL_ERROR', 'Error obteniendo pagos');
     }
 });
+
+adminRouter.use('/intervention', interventionRouter);
 
 export default adminRouter;

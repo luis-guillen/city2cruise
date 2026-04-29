@@ -54,4 +54,35 @@ describe('Hito 5.4.4 — services/twin (cliente frontend)', () => {
     const { fetchTwinSnapshot } = await import('@/services/twin');
     await expect(fetchTwinSnapshot()).rejects.toThrow(/502/);
   });
+
+  it('POST /admin/intervention/cancel con Authorization si hay token', async () => {
+    vi.stubEnv('VITE_TWIN_URL', 'http://twin-mock');
+    vi.stubEnv('VITE_API_URL', 'http://api-mock/api');
+    localStorage.setItem('token', 'jwt-admin');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as Response);
+
+    const { interveneCancel } = await import('@/services/twin');
+    await interveneCancel(42, 'operator override');
+
+    expect(fetchSpy).toHaveBeenCalledWith('http://api-mock/api/admin/intervention/cancel', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer jwt-admin',
+      }),
+    }));
+  });
+
+  it('POST /admin/intervention/force-assign envía requestId y driverId', async () => {
+    vi.stubEnv('VITE_TWIN_URL', 'http://twin-mock');
+    vi.stubEnv('VITE_API_URL', 'http://api-mock/api');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as Response);
+
+    const { interveneForceAssign } = await import('@/services/twin');
+    await interveneForceAssign(12, 8);
+
+    const [, init] = fetchSpy.mock.calls[0];
+    expect((init as RequestInit).method).toBe('POST');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ requestId: 12, driverId: 8 });
+  });
 });

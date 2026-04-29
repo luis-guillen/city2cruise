@@ -24,6 +24,8 @@ export function useDriverGeoLocation(
     const [location, setLocation] = useState<{ lat: number; lon: number } | null>(null);
     const [error, setError] = useState<boolean>(false);
     const [outsideZone, setOutsideZone] = useState<boolean>(false);
+    const fallbackLat = fallbackCoords?.lat ?? null;
+    const fallbackLon = fallbackCoords?.lon ?? null;
 
     // Generar fallback aleatorio una sola vez (persiste durante la sesión)
     const getFallback = (): [number, number] => {
@@ -115,7 +117,7 @@ export function useDriverGeoLocation(
             }
             emitToServer.cancel();
         };
-    }, [enabled, fallbackCoords, _isDemoAccount]);
+    }, [enabled, fallbackLat, fallbackLon, _isDemoAccount]);
 
     return { location, error, outsideZone };
 }
