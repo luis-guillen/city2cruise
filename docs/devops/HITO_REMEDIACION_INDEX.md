@@ -44,7 +44,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 
 - [x] H-4.1 — Actualizar Vite ≥ 6 (S-05)
 - [x] H-4.2 — Activar Dependabot
-- [ ] H-4.3
+- [x] H-4.3 — Política escrita de manejo de CVEs
 - [ ] H-4.4
 
 ## Capítulo 5 — Calidad de código y deuda técnica
