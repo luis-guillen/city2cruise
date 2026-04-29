@@ -127,6 +127,9 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Hito H-3.4 — contratos API single-source-of-truth.
+      // Frontend consume z.infer<>/DTOs desde backend/src/schemas/index.ts.
+      "@city2cruise/api-types": path.resolve(__dirname, "../backend/src/schemas"),
     },
   },
   test: {
