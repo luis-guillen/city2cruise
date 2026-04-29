@@ -140,24 +140,24 @@ def test_rl_training_mejora_reward_baseline_a_post_train():
         baseline.append(ep_r)
     baseline_mean = statistics.mean(baseline)
 
-    # Train PPO 5k steps (rápido en CPU)
+    # Train PPO 10k steps on the canonical env config
     agent = RLAgent()
-    agent.train(total_timesteps=5_000)
+    agent.train(total_timesteps=10_000)
 
-    # Eval con la policy entrenada
+    # Eval con la policy entrenada usando la misma adaptación de benchmark
+    from rl_service.benchmark import make_rl_policy
+    policy = make_rl_policy(agent.model)
     trained = []
     for ep_seed in range(30):
         obs, _ = env.reset(seed=ep_seed)
         ep_r = 0.0
         for _ in range(20):
-            action, _ = agent.model.predict(obs, deterministic=True)
-            obs, r, term, trunc, _ = env.step(int(action))
+            obs, r, term, trunc, _ = env.step(policy(obs))
             ep_r += r
             if term or trunc: break
         trained.append(ep_r)
     trained_mean = statistics.mean(trained)
 
-    # Tolerancia: PPO 5k es muy poco, sólo exigimos NO ser peor que baseline
-    assert trained_mean >= baseline_mean - 5, (
-        f"trained {trained_mean} debería ser >= baseline {baseline_mean} (-5 tol)"
+    assert trained_mean > baseline_mean, (
+        f"trained {trained_mean} debería superar baseline {baseline_mean}"
     )
