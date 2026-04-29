@@ -9,6 +9,7 @@ import { initSockets } from './sockets/io';
 import { buildServer } from './server';
 import { logger } from './utils/logger';
 import { startPickupReminderScheduler, stopPickupReminderScheduler } from './jobs/pickupReminderJob';
+import { startRebalanceScheduler, stopRebalanceScheduler } from './jobs/rebalanceFleetJob';
 import { startLockerSync, stopLockerSync } from './services/LockerSyncService';
 import { bootstrap } from './cluster';
 
@@ -26,6 +27,7 @@ const startServer = async () => {
 
         // 4. Arrancar jobs periódicos
         startPickupReminderScheduler();
+        startRebalanceScheduler();
         startLockerSync();
 
         // 5. Arrancar listener
@@ -37,6 +39,7 @@ const startServer = async () => {
         // 6. Graceful shutdown
         const shutdown = () => {
             stopPickupReminderScheduler();
+            stopRebalanceScheduler();
             stopLockerSync();
             server.close(() => process.exit(0));
         };
