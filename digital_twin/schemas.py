@@ -114,6 +114,10 @@ class ScenarioRequest(BaseModel):
     request_rate_per_min: float = Field(default=2.0, ge=0)
     drivers_online: int = Field(default=10, ge=0)
     seed: Optional[int] = None
+    scenario_file: Optional[str] = Field(
+        default=None,
+        description="Ruta opcional a un fixture JSON con cruceros y parámetros base",
+    )
 
 
 class ScenarioResult(BaseModel):

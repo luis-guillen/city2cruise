@@ -9,15 +9,23 @@ Hito 5.4.1: stub funcional.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import random
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
+from .cruise_schedule import (
+    InvalidScenarioPathError,
+    active_at,
+    load_manifest,
+    resolve_manifest_path,
+)
 from .schemas import (
     ScenarioRequest,
     ScenarioResult,
@@ -25,6 +33,7 @@ from .schemas import (
     TwinSnapshot,
 )
 from .state import get_store
+from .traffic import traffic_multiplier
 
 
 @asynccontextmanager
@@ -117,22 +126,54 @@ async def scenario_run(req: ScenarioRequest):
     Implementación de stub: muy simplificada. Cada request "elige" un
     driver random disponible y el match time se modela como exponencial.
     """
-    if req.seed is not None:
-        random.seed(req.seed)
+    rng = random.Random(req.seed)
 
     store = get_store()
     drivers_pool = req.drivers_online
-    expected_requests = int(req.duration_minutes * req.request_rate_per_min)
+    effective_duration_minutes = req.duration_minutes
+    expected_requests = int(effective_duration_minutes * req.request_rate_per_min)
+    scenario_anchor = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    manifest: list[dict] = []
+
+    try:
+        if req.scenario_file:
+            manifest = load_manifest(req.scenario_file)
+            if manifest:
+                first_arrival = min(
+                    datetime.fromisoformat(c["scheduled_arrival"].replace("Z", "+00:00"))
+                    for c in manifest
+                )
+                scenario_anchor = first_arrival
+
+            scenario_path = resolve_manifest_path(req.scenario_file)
+            scenario_payload = _load_scenario_metadata(scenario_path)
+            drivers_pool = int(scenario_payload.get("drivers", drivers_pool))
+            if "duration_hours" in scenario_payload and req.duration_minutes == ScenarioRequest.model_fields["duration_minutes"].default:
+                effective_duration_minutes = int(float(scenario_payload["duration_hours"]) * 60)
+                expected_requests = int(effective_duration_minutes * req.request_rate_per_min)
+    except InvalidScenarioPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Scenario fixture not found: {req.scenario_file}") from exc
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid scenario fixture: {req.scenario_file}") from exc
 
     completed = 0
     failed = 0
     match_times: list[float] = []
 
-    for _ in range(expected_requests):
+    for request_idx in range(expected_requests):
         if drivers_pool == 0:
             failed += 1
             continue
-        match_t = random.expovariate(1 / 30.0)  # media 30s
+
+        minute_offset = request_idx / max(req.request_rate_per_min, 1e-6)
+        current_time = scenario_anchor + timedelta(minutes=minute_offset)
+        traffic_factor = traffic_multiplier(current_time.hour, current_time.weekday())
+        active_cruises = active_at(manifest, current_time) if manifest else []
+        cruise_pressure = _cruise_pressure_multiplier(active_cruises)
+
+        match_t = rng.expovariate(1 / 30.0) * traffic_factor * cruise_pressure
         if match_t > 300:  # > 5 min se considera fallo
             failed += 1
         else:
@@ -143,7 +184,7 @@ async def scenario_run(req: ScenarioRequest):
     p95_idx = max(0, int(0.95 * len(match_times)) - 1)
     return ScenarioResult(
         name=req.name,
-        duration_minutes=req.duration_minutes,
+        duration_minutes=effective_duration_minutes,
         requests_simulated=expected_requests,
         requests_completed=completed,
         requests_failed=failed,
@@ -151,3 +192,16 @@ async def scenario_run(req: ScenarioRequest):
         p95_match_seconds=round(match_times[p95_idx] if match_times else 0.0, 1),
         final_aggregates=store.compute_aggregates(),
     )
+
+
+def _load_scenario_metadata(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
+def _cruise_pressure_multiplier(active_cruises: list[dict]) -> float:
+    if not active_cruises:
+        return 1.0
+
+    total_capacity = sum(int(c.get("capacity", 0)) for c in active_cruises)
+    # 2k pax ~ +5% pressure, capped to avoid runaway times.
+    return min(1.35, 1.0 + (total_capacity / 2000.0) * 0.05)
