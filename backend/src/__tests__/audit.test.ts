@@ -11,7 +11,7 @@ import {
     getDriverToken,
     getTestPool,
 } from './helpers';
-import { logAuditEvent, getAuditTrail, verifyEventSignature } from '../services/AuditService';
+import { logAuditEvent, getAuditTrail, verifyCustodyChain, verifyEventSignature } from '../services/AuditService';
 
 jest.mock('../db/database', () => {
     const actual = jest.requireActual('../db/database');
@@ -53,6 +53,8 @@ describe('AuditService — logAuditEvent', () => {
         const { rows: [row] } = await pool.query('SELECT * FROM audit_events WHERE request_id = $1', [998]);
         expect(row.signature).toBeTruthy();
         expect(row.signature.length).toBe(64); // SHA-256 hex = 64 chars
+        expect(row.event_hash).toBeTruthy();
+        expect(row.block_index).toBe(1);
     });
 
     it('almacena metadata como JSON cuando se proporciona', async () => {
@@ -112,6 +114,37 @@ describe('AuditService — getAuditTrail', () => {
     it('retorna array vacío para request_id sin eventos', async () => {
         const trail = await getAuditTrail(0);
         expect(trail).toEqual([]);
+    });
+});
+
+describe('AuditService — verifyCustodyChain', () => {
+    it('verifica una cadena hash-encadenada completa', async () => {
+        await logAuditEvent({ requestId: 992, eventType: 'REQUESTED', actorId: 1, actorRole: 'CLIENT' });
+        await logAuditEvent({ requestId: 992, eventType: 'ASSIGNED', actorId: 2, actorRole: 'DRIVER' });
+        await logAuditEvent({
+            requestId: 992,
+            eventType: 'HANDSHAKE_VALIDATED',
+            actorId: 1,
+            actorRole: 'CLIENT',
+            counterpartyActorId: 2,
+            counterpartyRole: 'DRIVER',
+            metadata: { attemptNumber: 1 },
+        });
+        await logAuditEvent({
+            requestId: 992,
+            eventType: 'DEPOSITED',
+            actorId: 2,
+            actorRole: 'DRIVER',
+            counterpartyActorId: 1,
+            counterpartyRole: 'CLIENT',
+            metadata: { lockerLabel: 'T-001' },
+        });
+
+        const report = await verifyCustodyChain(992);
+        expect(report.verified).toBe(true);
+        expect(report.blockCount).toBe(4);
+        expect(report.criticalBlockCount).toBe(2);
+        expect(report.receipts.every((receipt) => receipt.valid)).toBe(true);
     });
 });
 

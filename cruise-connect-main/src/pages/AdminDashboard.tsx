@@ -4,8 +4,8 @@ import { useApp } from '@/context/AppContext';
 import {
   getAdminUsers, deleteAdminUser,
   getMetricsThroughput, getMetricsTiming, getFleetStatus,
-  getAuditTrailByRequest, getAdminPayments, adminRefundPayment,
-  ThroughputMetrics, TimingMetrics, FleetStatus, AuditEvent, PaymentRecord
+  getAuditTrailByRequest, verifyAuditTrailByRequest, getAdminPayments, adminRefundPayment,
+  ThroughputMetrics, TimingMetrics, FleetStatus, AuditEvent, PaymentRecord, CustodyChainVerification
 } from '@/services/api';
 import GlassNavbar from '@/components/ios/GlassNavbar';
 import GlassCard from '@/components/ios/GlassCard';
@@ -51,6 +51,7 @@ export default function AdminDashboard() {
   const [timing, setTiming] = useState<TimingMetrics | null>(null);
   const [fleet, setFleet] = useState<FleetStatus | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [auditVerification, setAuditVerification] = useState<CustodyChainVerification | null>(null);
   const [auditSearchId, setAuditSearchId] = useState('');
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
@@ -106,8 +107,12 @@ export default function AdminDashboard() {
     const id = parseInt(auditSearchId);
     if (isNaN(id) || id < 1) { toast.error('ID inválido'); return; }
     try {
-      const events = await getAuditTrailByRequest(id);
+      const [events, verification] = await Promise.all([
+        getAuditTrailByRequest(id),
+        verifyAuditTrailByRequest(id),
+      ]);
       setAuditEvents(events);
+      setAuditVerification(verification);
       if (events.length === 0) toast('Sin eventos para esta solicitud');
     } catch { toast.error('Error buscando auditoría'); }
   };
@@ -436,6 +441,37 @@ export default function AdminDashboard() {
               </div>
             </GlassCard>
 
+            {auditVerification && (
+              <GlassCard variant="ultra">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="ios-title flex items-center gap-2">
+                      <Shield className={`w-5 h-5 ${auditVerification.verified ? 'text-[var(--ios-green)]' : 'text-[var(--ios-red)]'}`} />
+                      Cadena de custodia
+                    </h4>
+                    <p className="ios-caption mt-1">
+                      {auditVerification.storageMode} · {auditVerification.blockCount} bloques · {auditVerification.criticalBlockCount} bloques críticos
+                    </p>
+                    {auditVerification.lastEventHash && (
+                      <p className="font-mono text-[11px] text-[var(--ios-text-tertiary)] mt-1">
+                        {auditVerification.lastEventHash.slice(0, 24)}...
+                      </p>
+                    )}
+                  </div>
+                  <span className={`ios-badge ${auditVerification.verified ? 'ios-badge-green' : 'ios-badge-red'}`}>
+                    {auditVerification.verified ? 'Verificada' : 'Inválida'}
+                  </span>
+                </div>
+                {auditVerification.issues.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    {auditVerification.issues.map((issue, idx) => (
+                      <p key={idx} className="ios-caption text-[var(--ios-red)]">{issue}</p>
+                    ))}
+                  </div>
+                )}
+              </GlassCard>
+            )}
+
             {auditEvents.length > 0 && (
               <GlassCard variant="ultra" padding="none">
                 <div className="px-4 pt-4 pb-2">
@@ -463,7 +499,7 @@ export default function AdminDashboard() {
                       )}
                     </div>
                     <p className="font-mono text-[11px] text-[var(--ios-text-tertiary)] mt-0.5">
-                      {event.signature.slice(0, 16)}...
+                      #{event.block_index} · {event.event_hash.slice(0, 16)}...
                     </p>
                   </div>
                 ))}

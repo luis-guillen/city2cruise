@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '../db/database';
 import { authMiddleware, requireRole } from '../auth/middleware';
 import { sendError } from '../utils/errors';
-import { getAuditTrail } from '../services/AuditService';
+import { getAuditTrail, verifyCustodyChain } from '../services/AuditService';
 import { getActiveDrivers } from '../sockets/io';
 
 const adminRouter = Router();
@@ -217,6 +217,19 @@ adminRouter.get('/audit-trail/:requestId', authMiddleware, requireRole('ADMIN'),
     } catch (error) {
         console.error('[ADMIN] audit-trail/:requestId error:', error);
         sendError(res, 500, 'INTERNAL_ERROR', 'Error obteniendo audit trail');
+    }
+});
+
+adminRouter.get('/audit-trail/:requestId/verify', authMiddleware, requireRole('ADMIN'), async (req, res) => {
+    const requestId = Number(req.params.requestId);
+    if (isNaN(requestId)) return sendError(res, 400, 'BAD_REQUEST', 'requestId inválido');
+
+    try {
+        const report = await verifyCustodyChain(requestId);
+        res.json(report);
+    } catch (error) {
+        console.error('[ADMIN] audit-trail/:requestId/verify error:', error);
+        sendError(res, 500, 'INTERNAL_ERROR', 'Error verificando cadena de custodia');
     }
 });
 
