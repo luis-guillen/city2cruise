@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { handleAcceptRequest, handleDeposit, handleRenewHandshake } from '@/services/api';
+import { handleAcceptRequest, handleDepositWithChallenge, handleRenewHandshake } from '@/services/api';
 import { useSocket } from '@/hooks/useSocket';
 import { useDriverGeoLocation } from '@/hooks/useDriverGeoLocation';
 import { useDemoDriverRoute } from '@/hooks/useDemoDriverRoute';
@@ -13,10 +13,12 @@ import OutsideZoneBanner from '@/components/ios/OutsideZoneBanner';
 import { NotificationSettings } from '@/components/NotificationSettings';
 import { toast } from 'sonner';
 import { getApiErrorMessage } from '@/utils/errors';
+import { createAndSignCustodyChallenge, signExistingCustodyChallenge } from '@/services/custodyClient';
 import {
   Navigation, MapPin, Package, Box, Archive, LogOut,
   RefreshCw, CheckCircle2, Truck, AlertTriangle, Settings
 } from 'lucide-react';
+import { useEffect } from 'react';
 
 function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -36,7 +38,7 @@ const SizeIcon = ({ size }: { size: string }) => {
 export default function DriverDashboard() {
   const navigate = useNavigate();
   const {
-    userName, pendingRequests, driverPickups,
+    userId, userName, pendingRequests, driverPickups,
     setCurrentRequest, refreshData, logout, homeCoords
   } = useApp();
   const { isConnected: socketConnected } = useSocket();
@@ -71,6 +73,13 @@ export default function DriverDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  useEffect(() => {
+    if (!userId || !activePickup?.custodyChallenge || activePickup.status !== 'CONFIRMATION_PENDING') return;
+    signExistingCustodyChallenge(userId, activePickup.custodyChallenge).catch((err) => {
+      console.error('Error signing handshake challenge as driver:', err);
+    });
+  }, [userId, activePickup?.id, activePickup?.status, activePickup?.custodyChallenge]);
+
   const handleLogout = () => { logout(); navigate('/'); };
 
   // Geofencing: bloquear si está fuera de zona
@@ -87,6 +96,9 @@ export default function DriverDashboard() {
         location?.lon,
         7
       );
+      if (userId && updated.custodyChallenge) {
+        await signExistingCustodyChallenge(userId, updated.custodyChallenge);
+      }
       setCurrentRequest(updated);
       await refreshData();
       toast.success('Solicitud aceptada');
@@ -98,7 +110,9 @@ export default function DriverDashboard() {
   const onDeposit = async (requestId: string) => {
     setIsLoading(true);
     try {
-      const updated = await handleDeposit(requestId);
+      if (!userId) throw new Error('Usuario no disponible');
+      const challenge = await createAndSignCustodyChallenge(userId, Number(requestId), 'DEPOSITED');
+      const updated = await handleDepositWithChallenge(requestId, challenge.id);
       setCurrentRequest(updated);
       await refreshData();
       toast.success('Paquete depositado');

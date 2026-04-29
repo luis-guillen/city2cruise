@@ -12,6 +12,7 @@ import cruisesRouter from './cruises';
 import paymentsRouter from './payments';
 import pushRouter from './push';
 import internalRouter from './internal';
+import custodyRouter from './custody';
 import { authLimiter, lockerOpenLimiter } from '../middleware/rateLimiter';
 
 const apiRouter = Router();
@@ -39,6 +40,7 @@ v1Router.use('/merchants', merchantsRouter);
 v1Router.use('/cruises', cruisesRouter);
 v1Router.use('/payments', paymentsRouter);
 v1Router.use('/push', pushRouter);
+v1Router.use('/custody', custodyRouter);
 
 // Internal endpoint for RL microservice — NOT under /v1, NOT publicly documented
 apiRouter.use('/internal', internalRouter);

@@ -9,8 +9,8 @@ import { authMiddleware, requireRole } from '../auth/middleware';
 import { acceptSchema } from '../schemas/request.schemas';
 import { validateBody } from '../middleware/validateSchema';
 import { createRequestSchema, confirmDriverSchema, depositSchema } from '../schemas/request.schemas';
-import { getAuditTrail, verifyCustodyChain } from '../services/AuditService';
 import * as RequestService from '../services/RequestService';
+import { getRequestCustodyProof } from '../services/CustodyLedgerService';
 
 const requestsRouter = Router();
 
@@ -85,11 +85,8 @@ requestsRouter.get('/:id/custody-proof', authMiddleware, async (req, res) => {
     }
 
     try {
-        const [trail, verification] = await Promise.all([
-            getAuditTrail(reqId),
-            verifyCustodyChain(reqId),
-        ]);
-        res.json({ requestId: reqId, trail, verification });
+        const proof = await getRequestCustodyProof(reqId);
+        res.json(proof);
     } catch (err) {
         handleServiceError(err, res);
     }
@@ -163,10 +160,12 @@ requestsRouter.post('/:id/confirm-driver', authMiddleware, requireRole('CLIENT')
     const reqId = String(req.params.id);
     try {
         const { handshakeCode, latitude: clientLat, longitude: clientLon } = req.body;
+        const { challengeId } = req.body;
         const { dto } = await RequestService.confirmHandshake({
             requestId: reqId,
             clientId: req.user!.id,
             handshakeCode,
+            challengeId,
             clientLat,
             clientLon,
         });
@@ -206,6 +205,7 @@ requestsRouter.post('/:id/deposit', authMiddleware, requireRole('DRIVER'), valid
         const { dto, lockerCode, clientId, notification, locker } = await RequestService.depositRequest({
             requestId: reqId,
             driverId: req.user!.id,
+            challengeId: req.body.challengeId,
             lockerLabel: req.body.lockerLabel,
         });
 

@@ -27,6 +27,14 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
         return sendError(res, 401, 'UNAUTHORIZED', 'Token expirado o inválido');
     }
 
+    // Las respuestas autenticadas contienen estado vivo de negocio y no deben
+    // reciclarse mediante ETag/304 desde el navegador o un proxy intermedio.
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    delete req.headers['if-none-match'];
+    delete req.headers['if-modified-since'];
+
     req.user = decoded;
     next();
 };

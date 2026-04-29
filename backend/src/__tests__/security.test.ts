@@ -116,4 +116,24 @@ describe('Seguridad: Cabeceras HTTP', () => {
         expect(res.headers['x-content-type-options']).toBe('nosniff');
         expect(res.headers['x-frame-options']).toBeDefined();
     });
+
+    it('Respuestas autenticadas fuerzan no-store y no devuelven 304 por If-None-Match', async () => {
+        const first = await request(app)
+            .get('/api/requests/my-pickups')
+            .set('Authorization', `Bearer ${driverToken}`)
+            .expect(200);
+
+        expect(first.headers['cache-control']).toContain('no-store');
+
+        const etag = first.headers.etag;
+        expect(etag).toBeDefined();
+
+        const second = await request(app)
+            .get('/api/requests/my-pickups')
+            .set('Authorization', `Bearer ${driverToken}`)
+            .set('If-None-Match', etag)
+            .expect(200);
+
+        expect(second.headers['cache-control']).toContain('no-store');
+    });
 });

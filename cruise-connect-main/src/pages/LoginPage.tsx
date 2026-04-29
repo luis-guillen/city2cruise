@@ -8,6 +8,7 @@ import GlassCard from '@/components/ios/GlassCard';
 import GlassInput from '@/components/ios/GlassInput';
 import GlassSegmented from '@/components/ios/GlassSegmented';
 import { getApiErrorMessage } from '@/utils/errors';
+import { ensureDeviceSigningIdentity } from '@/services/custodyClient';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -43,7 +44,8 @@ export default function LoginPage() {
     try {
       if (mode === 'register') {
         const { token, user } = await registerUser(name.trim(), trimEmail, trimPassword, role);
-        setUser(user.name, user.role as 'CLIENT' | 'DRIVER' | 'ADMIN', token);
+        setUser(user.id, user.name, user.role as 'CLIENT' | 'DRIVER' | 'ADMIN', token);
+        await ensureDeviceSigningIdentity(user.id);
         toast.success('Cuenta creada');
         navigate(user.role === 'ADMIN' ? '/admin' : user.role === 'CLIENT' ? '/client' : '/driver');
       } else {
@@ -51,7 +53,8 @@ export default function LoginPage() {
         const homeCoords = user.latitude && user.longitude
           ? { lat: user.latitude, lon: user.longitude }
           : null;
-        setUser(user.name, user.role as 'CLIENT' | 'DRIVER' | 'ADMIN', token, homeCoords);
+        setUser(user.id, user.name, user.role as 'CLIENT' | 'DRIVER' | 'ADMIN', token, homeCoords);
+        await ensureDeviceSigningIdentity(user.id);
         toast.success(`Bienvenido, ${user.name}`);
         navigate(user.role === 'ADMIN' ? '/admin' : user.role === 'CLIENT' ? '/client' : '/driver');
       }

@@ -5,6 +5,7 @@ import { authMiddleware, requireRole } from '../auth/middleware';
 import { sendError } from '../utils/errors';
 import { getAuditTrail, verifyCustodyChain } from '../services/AuditService';
 import { getActiveDrivers } from '../sockets/io';
+import { getRequestCustodyProof, verifyRequestCustodyProof } from '../services/CustodyLedgerService';
 
 const adminRouter = Router();
 
@@ -230,6 +231,32 @@ adminRouter.get('/audit-trail/:requestId/verify', authMiddleware, requireRole('A
     } catch (error) {
         console.error('[ADMIN] audit-trail/:requestId/verify error:', error);
         sendError(res, 500, 'INTERNAL_ERROR', 'Error verificando cadena de custodia');
+    }
+});
+
+adminRouter.get('/custody-ledger/:requestId', authMiddleware, requireRole('ADMIN'), async (req, res) => {
+    const requestId = Number(req.params.requestId);
+    if (isNaN(requestId)) return sendError(res, 400, 'BAD_REQUEST', 'requestId inválido');
+
+    try {
+        const proof = await getRequestCustodyProof(requestId);
+        res.json(proof);
+    } catch (error) {
+        console.error('[ADMIN] custody-ledger/:requestId error:', error);
+        sendError(res, 500, 'INTERNAL_ERROR', 'Error obteniendo ledger de custodia');
+    }
+});
+
+adminRouter.get('/custody-ledger/:requestId/verify', authMiddleware, requireRole('ADMIN'), async (req, res) => {
+    const requestId = Number(req.params.requestId);
+    if (isNaN(requestId)) return sendError(res, 400, 'BAD_REQUEST', 'requestId inválido');
+
+    try {
+        const report = await verifyRequestCustodyProof(requestId);
+        res.json(report);
+    } catch (error) {
+        console.error('[ADMIN] custody-ledger/:requestId/verify error:', error);
+        sendError(res, 500, 'INTERNAL_ERROR', 'Error verificando ledger de custodia');
     }
 });
 
