@@ -43,7 +43,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 ## Capítulo 4 — Resiliencia y SLO
 
 - [x] H-4.1 — Actualizar Vite ≥ 6 (S-05)
-- [ ] H-4.2
+- [x] H-4.2 — Activar Dependabot
 - [ ] H-4.3
 - [ ] H-4.4
 
