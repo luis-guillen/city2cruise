@@ -9,6 +9,7 @@ describe('Hito 6.1.2 — useClientGeoLocation', () => {
   let originalGeolocation: Geolocation | undefined;
 
   beforeEach(() => {
+    vi.stubEnv('VITE_DEMO_MODE', 'false');
     originalGeolocation = navigator.geolocation;
     // @ts-expect-error mocking
     delete (window.navigator as { geolocation?: Geolocation }).geolocation;
@@ -21,6 +22,7 @@ describe('Hito 6.1.2 — useClientGeoLocation', () => {
         configurable: true,
       });
     }
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 

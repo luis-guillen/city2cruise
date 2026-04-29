@@ -12,6 +12,13 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/socket', () => ({ socket: mocks.socket }));
 vi.mock('../socket', () => ({ socket: mocks.socket }));
+vi.mock('@/utils/throttle', () => ({
+  throttle: <TArgs extends unknown[]>(fn: (...args: TArgs) => void) => {
+    const wrapped = ((...args: TArgs) => fn(...args)) as ((...args: TArgs) => void) & { cancel: () => void };
+    wrapped.cancel = () => {};
+    return wrapped;
+  },
+}));
 
 import { useDriverGeoLocation } from '@/hooks/useDriverGeoLocation';
 
@@ -19,6 +26,7 @@ describe('Hito 6.1.2 — useDriverGeoLocation', () => {
   let originalGeo: Geolocation | undefined;
 
   beforeEach(() => {
+    vi.stubEnv('VITE_DEMO_MODE', 'false');
     originalGeo = navigator.geolocation;
     mocks.socket.emit.mockClear();
   });
@@ -30,16 +38,19 @@ describe('Hito 6.1.2 — useDriverGeoLocation', () => {
         configurable: true,
       });
     }
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
   it('NO emite cuando enabled=false', async () => {
-    const { result } = renderHook(() => useDriverGeoLocation(false));
+    const { result, unmount } = renderHook(() => useDriverGeoLocation(false));
     expect(mocks.socket.emit).not.toHaveBeenCalled();
     expect(result.current.location).toBeNull();
+    unmount();
   });
 
   it('usa fallbackCoords cuando se proporcionan y GPS falla', async () => {
+    const stableFallback = { lat: 28.10, lon: -15.50 };
     const fakeGeo: Geolocation = {
       getCurrentPosition: () => {},
       watchPosition: (_s: PositionCallback, error?: PositionErrorCallback) => {
@@ -53,11 +64,12 @@ describe('Hito 6.1.2 — useDriverGeoLocation', () => {
     };
     Object.defineProperty(window.navigator, 'geolocation', { value: fakeGeo, configurable: true });
 
-    const { result } = renderHook(() => useDriverGeoLocation(true, { lat: 28.10, lon: -15.50 }));
+    const { result, unmount } = renderHook(() => useDriverGeoLocation(true, stableFallback));
     await waitFor(() => {
       expect(result.current.location).not.toBeNull();
     });
     expect(result.current.location).toEqual({ lat: 28.10, lon: -15.50 });
+    unmount();
   });
 
   it('marca outsideZone cuando GPS devuelve coords fuera de Las Palmas', async () => {
@@ -78,7 +90,8 @@ describe('Hito 6.1.2 — useDriverGeoLocation', () => {
     };
     Object.defineProperty(window.navigator, 'geolocation', { value: fakeGeo, configurable: true });
 
-    const { result } = renderHook(() => useDriverGeoLocation(true));
+    const { result, unmount } = renderHook(() => useDriverGeoLocation(true));
     await waitFor(() => expect(result.current.outsideZone).toBe(true));
+    unmount();
   });
 });

@@ -14,6 +14,8 @@ import {
   fetchTwinSnapshot,
   type TwinSnapshot,
 } from "@/services/twin";
+import { ManualInterventionPanel } from "@/components/twin/ManualInterventionPanel";
+import { RLRankingTable } from "@/components/twin/RLRankingTable";
 
 const REFRESH_MS = 5000;
 const DEFAULT_CENTER: [number, number] = [28.1235, -15.4363]; // Las Palmas
@@ -42,6 +44,21 @@ export default function ControlTowerPage() {
   const [snapshot, setSnapshot] = useState<TwinSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+
+  const loadSnapshot = async () => {
+    try {
+      const s = await fetchTwinSnapshot();
+      setSnapshot(s);
+      setError(null);
+      setLastUpdated(new Date());
+      if (selectedRequestId !== null && !s.requests.some((r) => r.id === selectedRequestId)) {
+        setSelectedRequestId(null);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +69,9 @@ export default function ControlTowerPage() {
         setSnapshot(s);
         setError(null);
         setLastUpdated(new Date());
+        if (selectedRequestId !== null && !s.requests.some((r) => r.id === selectedRequestId)) {
+          setSelectedRequestId(null);
+        }
       } catch (err) {
         if (cancelled) return;
         setError((err as Error).message);
@@ -63,9 +83,11 @@ export default function ControlTowerPage() {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [selectedRequestId]);
 
   const agg = snapshot?.aggregates;
+  const activeRequests = (snapshot?.requests ?? []).filter((request) => !['completed', 'cancelled'].includes(request.phase));
+  const selectedRequest = activeRequests.find((request) => request.id === selectedRequestId) ?? null;
 
   return (
     <div className="control-tower" style={{ padding: "1rem" }}>
@@ -108,6 +130,64 @@ export default function ControlTowerPage() {
           value={agg?.avg_match_seconds_15m ? `${agg.avg_match_seconds_15m}s` : "—"}
           accent="#a855f7"
         />
+      </section>
+
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(260px, 360px) minmax(280px, 1fr) minmax(280px, 1fr)",
+          gap: "1rem",
+          marginBottom: "1rem",
+          alignItems: "start",
+        }}
+      >
+        <div style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "1rem" }}>
+          <h2 style={{ marginTop: 0 }}>Requests activas</h2>
+          {activeRequests.length === 0 ? (
+            <p style={{ marginBottom: 0, color: "#6b7280" }}>No hay requests activas en el twin.</p>
+          ) : (
+            <div style={{ display: "grid", gap: "0.5rem" }}>
+              {activeRequests.map((request) => {
+                const selected = selectedRequestId === request.id;
+                return (
+                  <button
+                    key={request.id}
+                    type="button"
+                    onClick={() => setSelectedRequestId(request.id)}
+                    style={{
+                      textAlign: "left",
+                      border: selected ? "2px solid #0f766e" : "1px solid #cbd5e1",
+                      background: selected ? "#f0fdfa" : "#fff",
+                      borderRadius: 8,
+                      padding: "0.75rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <strong>#{request.id}</strong>
+                    <div style={{ color: "#4b5563", marginTop: 4 }}>fase: {request.phase}</div>
+                    <div style={{ color: "#6b7280", fontSize: "0.9rem", marginTop: 4 }}>
+                      driver: {request.driver_id ?? "—"} · locker: {request.locker_id ?? "—"}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selectedRequest ? (
+          <ManualInterventionPanel
+            requestId={selectedRequest.id}
+            currentDriverId={selectedRequest.driver_id ?? null}
+            onCompleted={() => { void loadSnapshot(); }}
+          />
+        ) : (
+          <div style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "1rem", color: "#6b7280" }}>
+            Selecciona una request activa para intervenir.
+          </div>
+        )}
+
+        <RLRankingTable requestId={selectedRequest?.id ?? null} />
       </section>
 
       {/* Mapa */}

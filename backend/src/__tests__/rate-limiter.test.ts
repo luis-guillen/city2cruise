@@ -25,13 +25,19 @@ function appWithLimiter(max: number, windowMs = 60_000) {
     return a;
 }
 
+async function hitProbe(app: express.Express) {
+    return request(app)
+        .get('/probe')
+        .set('X-Forwarded-For', '203.0.113.10');
+}
+
 describe('Hito 6.3.4 — Rate limiting (límites reales sin skipInTest)', () => {
     describe('authLimiter (10 req/min en producción)', () => {
         it('permite 10 peticiones consecutivas y bloquea la 11ª con 429', async () => {
             const a = appWithLimiter(10);
             const statuses: number[] = [];
             for (let i = 0; i < 11; i++) {
-                const r = await request(a).get('/probe');
+                const r = await hitProbe(a);
                 statuses.push(r.status);
             }
             expect(statuses.filter(s => s === 200).length).toBe(10);
@@ -40,8 +46,8 @@ describe('Hito 6.3.4 — Rate limiting (límites reales sin skipInTest)', () => 
 
         it('429 incluye header Retry-After o RateLimit-Reset', async () => {
             const a = appWithLimiter(10);
-            for (let i = 0; i < 10; i++) await request(a).get('/probe');
-            const r = await request(a).get('/probe');
+            for (let i = 0; i < 10; i++) await hitProbe(a);
+            const r = await hitProbe(a);
             expect(r.status).toBe(429);
             const hasRetryHeader =
                 r.headers['retry-after'] !== undefined ||
@@ -55,7 +61,7 @@ describe('Hito 6.3.4 — Rate limiting (límites reales sin skipInTest)', () => 
             const a = appWithLimiter(5);
             const statuses: number[] = [];
             for (let i = 0; i < 6; i++) {
-                const r = await request(a).get('/probe');
+                const r = await hitProbe(a);
                 statuses.push(r.status);
             }
             expect(statuses.filter(s => s === 200).length).toBe(5);
@@ -64,9 +70,9 @@ describe('Hito 6.3.4 — Rate limiting (límites reales sin skipInTest)', () => 
 
         it('respuesta 429 contiene mensaje de error tipado', async () => {
             const a = appWithLimiter(2);
-            await request(a).get('/probe');
-            await request(a).get('/probe');
-            const r = await request(a).get('/probe');
+            await hitProbe(a);
+            await hitProbe(a);
+            const r = await hitProbe(a);
             expect(r.status).toBe(429);
             expect(r.body.error?.code).toBe('TOO_MANY_REQUESTS');
         });
@@ -77,7 +83,7 @@ describe('Hito 6.3.4 — Rate limiting (límites reales sin skipInTest)', () => 
             const a = appWithLimiter(100);
             const statuses: number[] = [];
             for (let i = 0; i < 101; i++) {
-                const r = await request(a).get('/probe');
+                const r = await hitProbe(a);
                 statuses.push(r.status);
             }
             expect(statuses.filter(s => s === 200).length).toBe(100);

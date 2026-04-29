@@ -144,6 +144,14 @@ export function syncRequestCompleted(requestId: number) {
     });
 }
 
+export function syncRequestCancelled(requestId: number, reason?: string) {
+    return syncEvent({
+        event_type: 'request.cancelled',
+        timestamp: new Date().toISOString(),
+        payload: { request_id: requestId, ...(reason ? { reason } : {}) },
+    });
+}
+
 // Para tests: exporta estado interno
 export function _resetCircuitForTests(): void {
     consecutiveFailures = 0;
