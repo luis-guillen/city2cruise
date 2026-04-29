@@ -64,9 +64,9 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 
 ## Capítulo 7 — Continuidad (DR, backups)
 
-- [ ] H-7.1
-- [ ] H-7.2
-- [ ] H-7.3
+- [x] H-7.1 — Suite k6 contra staging (I-04) (code-complete)
+- [x] H-7.2 — Validar alertas Prometheus + Sentry (code-complete)
+- [x] H-7.3 — Game day DR (code-complete)
 
 ## Capítulo 8 — Re-auditoría a 30 días
 
