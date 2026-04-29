@@ -27,7 +27,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 - [x] H-2.1 — CORS hardening + Sentry alert (S-06)
 - [ ] H-2.2
 - [x] H-2.3 — Limpieza de archivos residuales (S-09)
-- [ ] H-2.4
+- [x] H-2.4 — ESLint backend con no-floating-promises (I-01)
 - [ ] H-2.5
 - [ ] H-2.6
 - [ ] H-2.7

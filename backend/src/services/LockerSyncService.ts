@@ -87,7 +87,7 @@ let _interval: NodeJS.Timeout | null = null;
 
 export function startLockerSync(): void {
     if (_interval) return;
-    _interval = setInterval(runSyncCycle, config.locker.syncIntervalMs);
+    _interval = setInterval(() => { runSyncCycle().catch(() => {}); }, config.locker.syncIntervalMs);
     runSyncCycle().catch(() => {});
     logger.info({ intervalMs: config.locker.syncIntervalMs }, 'Locker sync scheduler started');
 }

@@ -162,8 +162,10 @@ export const initSockets = (httpServer: HttpServer) => {
             syncDriverStatus(user.id, 'available').catch(() => {});
         }
 
-        // Join private user room
-        socket.join(roomName);
+        // Join private user room. socket.join() retorna Promise en cluster
+        // mode; fire-and-forget con `void` es seguro porque la confirmación
+        // no es crítica para emisiones inmediatas posteriores.
+        void socket.join(roomName);
 
         // Add to active drivers if role is DRIVER
         if (user.role === 'DRIVER') {

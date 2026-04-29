@@ -149,7 +149,7 @@ export function startCascadeSearch(requestId: number, clientId: number, safeDto:
         logger.info({ requestId, radiusKm: radius, phase: phase + 1, newly: newly.size }, 'CASCADE Phase');
 
         const nextPhase = (phase + 1) % radii.length;
-        const t = setTimeout(() => runCascade(nextPhase), delay);
+        const t = setTimeout(() => { runCascade(nextPhase).catch((err) => logger.error({ err, requestId }, 'CASCADE next-phase error')); }, delay);
         timeouts.push(t);
     };
 

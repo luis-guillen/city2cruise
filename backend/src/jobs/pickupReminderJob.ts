@@ -33,7 +33,7 @@ let _interval: NodeJS.Timeout | null = null;
 
 export function startPickupReminderScheduler(): void {
     if (_interval) return;
-    _interval = setInterval(runPickupReminderJob, 60 * 60 * 1000); // cada hora
+    _interval = setInterval(() => { runPickupReminderJob().catch(() => {}); }, 60 * 60 * 1000); // cada hora
     runPickupReminderJob().catch(() => {}); // primera ejecución inmediata
     logger.info({ intervalHours: 1 }, 'Pickup reminder scheduler started');
 }
