@@ -199,8 +199,19 @@ CREATE TABLE IF NOT EXISTS audit_events (
   actor_id INTEGER NOT NULL,
   metadata JSONB NULL,
   signature TEXT NOT NULL,
+  block_index INTEGER NOT NULL DEFAULT 0,
+  previous_event_hash TEXT NULL,
+  event_hash TEXT NOT NULL DEFAULT '',
+  receipt_payload JSONB NULL,
+  receipt_hash TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS block_index INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS previous_event_hash TEXT NULL;
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS event_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS receipt_payload JSONB NULL;
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS receipt_hash TEXT NULL;
 
 -- ─── HANDSHAKE ATTEMPTS ─────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS handshake_attempts (
@@ -269,6 +280,8 @@ CREATE INDEX IF NOT EXISTS idx_pickup_requests_driver_id ON pickup_requests(driv
 CREATE INDEX IF NOT EXISTS idx_pickup_requests_created_at ON pickup_requests(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_events_request_id ON audit_events(request_id);
 CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_events_request_block_index ON audit_events(request_id, block_index);
+CREATE INDEX IF NOT EXISTS idx_audit_events_event_hash ON audit_events(event_hash);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_handshake_attempts_request_id ON handshake_attempts(request_id);
 CREATE INDEX IF NOT EXISTS idx_merchants_integration_status ON merchants(integration_status);

@@ -277,7 +277,28 @@ export interface AuditEvent {
   actor_id: number;
   metadata: string | null;
   signature: string;
+  block_index: number;
+  previous_event_hash: string | null;
+  event_hash: string;
+  receipt_payload: string | null;
+  receipt_hash: string | null;
   created_at: string;
+}
+
+export interface CustodyChainVerification {
+  requestId: number;
+  verified: boolean;
+  storageMode: 'HASH_CHAINED_POSTGRES';
+  blockCount: number;
+  criticalBlockCount: number;
+  lastEventHash: string | null;
+  issues: string[];
+  receipts: Array<{
+    eventId: string;
+    eventType: string;
+    valid: boolean;
+    receiptHash: string | null;
+  }>;
 }
 
 export async function getMetricsThroughput(): Promise<ThroughputMetrics> {
@@ -297,6 +318,11 @@ export async function getFleetStatus(): Promise<FleetStatus> {
 
 export async function getAuditTrailByRequest(requestId: number): Promise<AuditEvent[]> {
   const res = await api.get(`/admin/audit-trail/${requestId}`);
+  return res.data;
+}
+
+export async function verifyAuditTrailByRequest(requestId: number): Promise<CustodyChainVerification> {
+  const res = await api.get(`/admin/audit-trail/${requestId}/verify`);
   return res.data;
 }
 

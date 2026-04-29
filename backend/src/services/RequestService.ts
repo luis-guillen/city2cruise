@@ -82,7 +82,16 @@ export async function createRequest(
     const dto = buildPickupRequestDTO(inserted);
     logger.info({ requestId: dto.id, client: params.userName, locker: locker.label }, 'Request created with reserved locker');
     
-    await logAuditEvent({ requestId: dto.id, eventType: 'REQUESTED', actorId: params.userId });
+    await logAuditEvent({
+        requestId: dto.id,
+        eventType: 'REQUESTED',
+        actorId: params.userId,
+        actorRole: 'CLIENT',
+        metadata: {
+            pickupLocation: dto.pickupLocation,
+            packageSize: dto.packageSize,
+        },
+    });
 
     // Hito 5.3.3 — métrica business: request creada
     requestsCreatedTotal.inc({ locker_id: String(locker.id) });
@@ -179,7 +188,15 @@ export async function acceptRequest(
     }
 
     logger.info({ requestId, driver: driverName }, 'Request accepted, pending confirmation');
-    await logAuditEvent({ requestId: Number(requestId), eventType: 'ASSIGNED', actorId: driverId });
+    await logAuditEvent({
+        requestId: Number(requestId),
+        eventType: 'ASSIGNED',
+        actorId: driverId,
+        actorRole: 'DRIVER',
+        metadata: {
+            driverName,
+        },
+    });
     cancelCascade(Number(requestId));
 
     const { rows: [row] } = await db.query(`
@@ -289,7 +306,13 @@ export async function confirmHandshake(
         logger.warn({ requestId, attempt: newFailedCount, max: MAX_HANDSHAKE_ATTEMPTS }, 'Handshake failed');
 
         if (newFailedCount >= MAX_HANDSHAKE_ATTEMPTS) {
-            await logAuditEvent({ requestId: Number(requestId), eventType: 'RATE_LIMIT_BLOCK', actorId: clientId });
+            await logAuditEvent({
+                requestId: Number(requestId),
+                eventType: 'RATE_LIMIT_BLOCK',
+                actorId: clientId,
+                actorRole: 'CLIENT',
+                metadata: { failedAttempts: newFailedCount },
+            });
             logger.error({ requestId }, 'Handshake blocked: max attempts reached, L1 intervention required');
         }
 
@@ -321,7 +344,19 @@ export async function confirmHandshake(
         WHERE r.id = $1
     `, [requestId]);
     const dto = buildPickupRequestDTO(updatedRow);
-    await logAuditEvent({ requestId: Number(requestId), eventType: 'HANDSHAKE_VALIDATED', actorId: clientId });
+    await logAuditEvent({
+        requestId: Number(requestId),
+        eventType: 'HANDSHAKE_VALIDATED',
+        actorId: clientId,
+        actorRole: 'CLIENT',
+        counterpartyActorId: request.driver_id,
+        counterpartyRole: 'DRIVER',
+        metadata: {
+            clientLat: clientLat ?? null,
+            clientLon: clientLon ?? null,
+            attemptNumber,
+        },
+    });
 
     return { dto };
 }
@@ -440,7 +475,18 @@ export async function depositRequest(
     }
 
     logger.info({ requestId, locker: resultData.lockerLabel }, 'Request deposited');
-    await logAuditEvent({ requestId: Number(requestId), eventType: 'DEPOSITED', actorId: driverId });
+    await logAuditEvent({
+        requestId: Number(requestId),
+        eventType: 'DEPOSITED',
+        actorId: driverId,
+        actorRole: 'DRIVER',
+        counterpartyActorId: resultData.clientId,
+        counterpartyRole: 'CLIENT',
+        metadata: {
+            lockerLabel: resultData.lockerLabel,
+            lockerCodeExpiresAt,
+        },
+    });
 
     // Hito 5.3.3 — métrica business: request completada con depósito en locker
     requestsCompletedTotal.inc();
@@ -518,7 +564,12 @@ export async function renewHandshake(
     }
 
     logger.info({ requestId, expiresAt: newExpiresAt }, 'Handshake renewed');
-    await logAuditEvent({ requestId: Number(requestId), eventType: 'HANDSHAKE_RENEWED', actorId: driverId });
+    await logAuditEvent({
+        requestId: Number(requestId),
+        eventType: 'HANDSHAKE_RENEWED',
+        actorId: driverId,
+        actorRole: 'DRIVER',
+    });
 
     const { rows: [row] } = await db.query(`
         SELECT r.*, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude

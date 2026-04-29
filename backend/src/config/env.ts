@@ -15,6 +15,13 @@ export const config = {
         }
         return secret || 'secret_para_desarrollo_cambiar_en_produccion';
     })(),
+    auditHmacSecret: (() => {
+        const secret = process.env.AUDIT_HMAC_SECRET || process.env.JWT_SECRET;
+        if (!secret && process.env.NODE_ENV === 'production') {
+            throw new Error('FATAL: AUDIT_HMAC_SECRET es obligatorio en producción.');
+        }
+        return secret || 'audit_secret_para_desarrollo_cambiar_en_produccion';
+    })(),
     refreshTokenSecret: (() => {
         const secret = process.env.REFRESH_TOKEN_SECRET;
         if (!secret && process.env.NODE_ENV === 'production') {

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { db } from '../db/database';
 import { sendError, ServiceError } from '../utils/errors';
 import { sanitizeForSocket } from '../utils/dto';
 import { emitEvent, emitToUser, getActiveDrivers } from '../sockets/io';
@@ -8,6 +9,7 @@ import { authMiddleware, requireRole } from '../auth/middleware';
 import { acceptSchema } from '../schemas/request.schemas';
 import { validateBody } from '../middleware/validateSchema';
 import { createRequestSchema, confirmDriverSchema, depositSchema } from '../schemas/request.schemas';
+import { getAuditTrail, verifyCustodyChain } from '../services/AuditService';
 import * as RequestService from '../services/RequestService';
 
 const requestsRouter = Router();
@@ -58,6 +60,39 @@ requestsRouter.get('/mine', authMiddleware, requireRole('CLIENT'), async (req, r
 requestsRouter.get('/history', authMiddleware, requireRole('CLIENT'), async (req, res) => {
     const dtos = await RequestService.getClientHistory({ userId: req.user!.id });
     res.json(dtos);
+});
+
+// GET /requests/:id/custody-proof
+requestsRouter.get('/:id/custody-proof', authMiddleware, async (req, res) => {
+    const reqId = Number(req.params.id);
+    if (isNaN(reqId)) {
+        return sendError(res, 400, 'BAD_REQUEST', 'ID de pedido inválido');
+    }
+
+    const { rows: [requestRow] } = await db.query(
+        'SELECT id, client_id, driver_id FROM pickup_requests WHERE id = $1',
+        [reqId],
+    );
+    if (!requestRow) {
+        return sendError(res, 404, 'NOT_FOUND', 'Pedido no encontrado');
+    }
+
+    const canAccess = req.user?.role === 'ADMIN'
+        || requestRow.client_id === req.user?.id
+        || requestRow.driver_id === req.user?.id;
+    if (!canAccess) {
+        return sendError(res, 403, 'FORBIDDEN', 'No autorizado para ver la cadena de custodia');
+    }
+
+    try {
+        const [trail, verification] = await Promise.all([
+            getAuditTrail(reqId),
+            verifyCustodyChain(reqId),
+        ]);
+        res.json({ requestId: reqId, trail, verification });
+    } catch (err) {
+        handleServiceError(err, res);
+    }
 });
 
 // ======================================

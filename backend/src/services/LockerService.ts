@@ -71,7 +71,17 @@ export async function openLocker(
     }
 
     logger.info({ requestId: matchedRow.id, locker: matchedRow.locker_label }, 'Locker opened');
-    await logAuditEvent({ requestId: matchedRow.id, eventType: 'PICKED_UP', actorId: userId });
+    await logAuditEvent({
+        requestId: matchedRow.id,
+        eventType: 'PICKED_UP',
+        actorId: userId,
+        actorRole: 'CLIENT',
+        counterpartyActorId: matchedRow.driver_id ?? null,
+        counterpartyRole: matchedRow.driver_id ? 'DRIVER' : undefined,
+        metadata: {
+            lockerLabel: matchedRow.locker_label,
+        },
+    });
 
     const { rows: [row] } = await db.query(`
         SELECT r.*, l.label as locker_label, u.name as driver_name, u.latitude as driver_latitude, u.longitude as driver_longitude
