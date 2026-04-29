@@ -48,23 +48,34 @@ export const buildServer = (): Express => {
     // 2. Cookie parser (necesario para refresh token HttpOnly)
     app.use(cookieParser());
 
-    // 3. CORS
-    const allowedOrigins = [config.frontendUrl, 'http://localhost:9100', 'http://localhost:9101', 'http://localhost:9102', 'http://localhost:9103'];
+    // 3. CORS — Hito H-2.1 (S-06): whitelist explícita + regex sólo en dev,
+    //   con alerta a Sentry de cualquier rechazo para detectar fugas.
+    const allow = new Set<string>([config.frontendUrl, ...config.allowedOrigins]);
+    const localPortRegex = /^http:\/\/localhost:(\d{4,5})$/;
+    const lanRegex = /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/;
     app.use(cors({
-        origin: (origin, callback) => {
-            // Permitir peticiones sin origen (como mobile apps o curl)
+        credentials: true,
+        origin(origin, callback) {
+            // Sin origen (curl, mobile apps, same-origin SSR) → permitido.
             if (!origin) return callback(null, true);
-            if (
-                allowedOrigins.indexOf(origin) !== -1 || 
-                origin.startsWith('http://localhost:') || 
-                (process.env.NODE_ENV !== 'production' && origin.startsWith('http://192.168.'))
-            ) {
-                callback(null, true);
-            } else {
-                callback(new Error('Not allowed by CORS'));
+            if (allow.has(origin)) return callback(null, true);
+            if (process.env.NODE_ENV !== 'production' && localPortRegex.test(origin)) {
+                return callback(null, true);
             }
+            if (process.env.NODE_ENV !== 'production' && lanRegex.test(origin)) {
+                return callback(null, true);
+            }
+            // Alertar y rechazar.
+            try {
+                Sentry.captureMessage('CORS rechazo', {
+                    level: 'warning',
+                    extra: { origin },
+                });
+            } catch {
+                // Sentry puede no estar inicializado en tests; ignorar.
+            }
+            return callback(new Error('Not allowed by CORS'));
         },
-        credentials: true
     }));
 
     // 4a. Hito 4.3.4 — Compresion gzip/brotli y ETag.

@@ -24,7 +24,7 @@ Estado: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado · `[!]` bloqueado.
 
 ## Capítulo 2 — Hardening (post-launch)
 
-- [ ] H-2.1
+- [x] H-2.1 — CORS hardening + Sentry alert (S-06)
 - [ ] H-2.2
 - [ ] H-2.3
 - [ ] H-2.4
