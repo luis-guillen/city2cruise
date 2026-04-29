@@ -1,0 +1,40 @@
+# Hito H-5.4 — Configuración pre-commit con escaneo de secretos.
+#
+# Instalación:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Ejecución manual sobre todo el repo (útil tras un rebase):
+#   pre-commit run --all-files
+#
+# El hook gitleaks complementa al script propio
+# scripts/pre-commit-secrets.sh (que sigue existiendo y se mantiene como
+# fallback para devs sin pre-commit instalado).
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        name: gitleaks (secret scanning)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: detect-private-key
+        name: detect-private-key (no PEMs en el repo)
+      - id: end-of-file-fixer
+        name: end-of-file-fixer
+        exclude: '(\\.svg|\\.lock|\\.lockb|package-lock\\.json|\\.snap)$'
+      - id: trailing-whitespace
+        name: trailing-whitespace
+        args: ['--markdown-linebreak-ext=md']
+        exclude: '(\\.svg|\\.lock|\\.lockb|package-lock\\.json|\\.snap)$'
+      - id: check-yaml
+        name: check-yaml
+        args: ['--allow-multiple-documents']
+      - id: check-merge-conflict
+        name: check-merge-conflict
+      - id: check-added-large-files
+        name: check-added-large-files
+        args: ['--maxkb=2000']
