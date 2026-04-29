@@ -1,16 +1,29 @@
-# Stage 1: Build
+# syntax=docker/dockerfile:1.7
+
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
+COPY --chown=node:node package*.json ./
 RUN npm ci
-COPY . .
+COPY --chown=node:node . .
 RUN npm run build
 
-# Stage 2: Runtime
+# ── Stage 2: Runtime ──────────────────────────────────────────────────────────
+# Hito H-1.3 (S-03): runtime no-root + HEALTHCHECK.
 FROM node:20-alpine AS runtime
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY --from=builder /app/dist ./dist
+# Dependencias prod, propietario `node` (UID 1000 en la imagen oficial).
+COPY --chown=node:node package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=builder --chown=node:node /app/dist ./dist
+
+# Cambia a usuario sin privilegios antes del CMD (sin esto, el proceso corre
+# como root y un RCE escalaría a root dentro del contenedor).
+USER node
+
 EXPOSE 9000
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
+    CMD wget --spider -q http://localhost:9000/api/health || exit 1
+
 CMD ["node", "dist/index.js"]
