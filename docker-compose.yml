@@ -88,6 +88,8 @@ services:
       VALIDATOR_LEDGER_A_URL: http://ledger-a:4001
       VALIDATOR_LEDGER_B_URL: http://ledger-b:4001
       VALIDATOR_LEDGER_C_URL: http://ledger-c:4001
+      RL_SERVICE_URL: http://rl_service:8080
+      TWIN_URL: http://digital_twin:8090
     depends_on:
       db:
         condition: service_healthy
@@ -109,6 +111,10 @@ services:
     build: ./cruise-connect-main
     ports:
       - "80:8080"
+    environment:
+      VITE_API_URL: http://localhost:9000/api
+      VITE_SOCKET_URL: http://localhost:9000
+      VITE_TWIN_URL: http://localhost:8090
     depends_on:
       - backend
     restart: unless-stopped
@@ -118,6 +124,41 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+
+  digital_twin:
+    build: ./digital_twin
+    ports:
+      - "8090:8090"
+    environment:
+      TWIN_ENV: production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  rl_service:
+    build: ./rl_service
+    ports:
+      - "8080:8080"
+    environment:
+      RL_MODEL_PATH: /tmp/cruise_dispatch_ppo
+      BACKEND_URL: http://backend:9000
+      TWIN_URL: http://digital_twin:8090
+    depends_on:
+      backend:
+        condition: service_healthy
+      digital_twin:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   pgdata:
