@@ -53,6 +53,24 @@ on:
       - 'docker-compose.dev.yml'
       - '.github/workflows/ai-rl-ci.yml'
   workflow_dispatch:
+    inputs:
+      run_mirofish_smoke:
+        description: 'Run the live MiroFish smoke check'
+        required: false
+        default: false
+        type: boolean
+      mirofish_base_url:
+        description: 'Base URL for live MiroFish'
+        required: false
+        type: string
+      mirofish_project_id:
+        description: 'Project id for live MiroFish'
+        required: false
+        type: string
+      mirofish_graph_id:
+        description: 'Optional graph id for live MiroFish'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -165,3 +183,32 @@ jobs:
           tags: city2cruise-digital-twin:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  mirofish-smoke:
+    name: MiroFish smoke (manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.run_mirofish_smoke
+    env:
+      MIROFISH_BASE_URL: ${{ inputs.mirofish_base_url }}
+      MIROFISH_PROJECT_ID: ${{ inputs.mirofish_project_id }}
+      MIROFISH_GRAPH_ID: ${{ inputs.mirofish_graph_id }}
+      MIROFISH_API_KEY: ${{ secrets.MIROFISH_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install smoke deps
+        run: pip install httpx pydantic
+      - name: Validate inputs
+        run: |
+          test -n "$MIROFISH_BASE_URL"
+          test -n "$MIROFISH_PROJECT_ID"
+      - name: Run MiroFish smoke
+        run: |
+          python scripts/smoke_mirofish.py \
+            --base-url "$MIROFISH_BASE_URL" \
+            --project-id "$MIROFISH_PROJECT_ID" \
+            ${MIROFISH_GRAPH_ID:+--graph-id "$MIROFISH_GRAPH_ID"} \
+            ${MIROFISH_API_KEY:+--api-key "$MIROFISH_API_KEY"}
