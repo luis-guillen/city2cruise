@@ -19,6 +19,11 @@ import { RLRankingTable } from "@/components/twin/RLRankingTable";
 
 const REFRESH_MS = 5000;
 const DEFAULT_CENTER: [number, number] = [28.1235, -15.4363]; // Las Palmas
+const AI_THINKING_STEPS = [
+  "Loading the live twin state",
+  "Scoring available drivers",
+  "Ranking the best dispatch option",
+];
 
 const lockerColor = (status: string) => {
   switch (status) {
@@ -45,6 +50,7 @@ export default function ControlTowerPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+  const [aiStep, setAiStep] = useState(0);
 
   const loadSnapshot = async () => {
     try {
@@ -88,6 +94,20 @@ export default function ControlTowerPage() {
   const agg = snapshot?.aggregates;
   const activeRequests = (snapshot?.requests ?? []).filter((request) => !['completed', 'cancelled'].includes(request.phase));
   const selectedRequest = activeRequests.find((request) => request.id === selectedRequestId) ?? null;
+  const aiActive = selectedRequest !== null;
+
+  useEffect(() => {
+    if (!aiActive) {
+      setAiStep(0);
+      return;
+    }
+
+    const id = window.setInterval(() => {
+      setAiStep((current) => (current + 1) % AI_THINKING_STEPS.length);
+    }, 1600);
+
+    return () => window.clearInterval(id);
+  }, [aiActive]);
 
   return (
     <div className="control-tower" style={{ padding: "1rem" }}>
@@ -108,6 +128,114 @@ export default function ControlTowerPage() {
           </div>
         )}
       </header>
+
+      <section
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.5fr 1fr',
+          gap: '0.75rem',
+          alignItems: 'stretch',
+          marginBottom: '1rem',
+        }}
+        aria-label="AI status banner"
+      >
+        <div
+          style={{
+            borderRadius: 16,
+            padding: '1rem 1.15rem',
+            background: 'linear-gradient(135deg, #0f172a 0%, #0f766e 100%)',
+            color: '#fff',
+            boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'radial-gradient(circle at top right, rgba(255,255,255,0.18), transparent 35%), radial-gradient(circle at bottom left, rgba(255,255,255,0.12), transparent 28%)',
+              pointerEvents: 'none',
+            }}
+          />
+          <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.88 }}>
+                AI Decision Engine
+              </div>
+              <h2 style={{ margin: '0.2rem 0 0.35rem', fontSize: '1.45rem' }}>
+                {aiActive ? 'Thinking about the active request' : 'Monitoring live state and waiting for the next request'}
+              </h2>
+              <p style={{ margin: 0, maxWidth: 620, lineHeight: 1.45, color: 'rgba(255,255,255,0.86)' }}>
+                La torre muestra el twin en tiempo real, el ranking RL y la intervención manual. Cuando seleccionas una request, la IA entra en modo de evaluación y presenta su ranking como si estuviera razonando la siguiente mejor acción.
+              </p>
+              {aiActive ? (
+                <div
+                  style={{
+                    marginTop: '0.8rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.45rem 0.7rem',
+                    borderRadius: 999,
+                    background: 'rgba(255,255,255,0.12)',
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: '#fbbf24',
+                      boxShadow: '0 0 0 6px rgba(251, 191, 36, 0.16)',
+                      animation: 'pulse 1.1s ease-in-out infinite',
+                    }}
+                  />
+                  <span style={{ fontWeight: 700 }}>{AI_THINKING_STEPS[aiStep]}</span>
+                </div>
+              ) : null}
+            </div>
+            <div
+              style={{
+                minWidth: 150,
+                padding: '0.7rem 0.85rem',
+                borderRadius: 14,
+                background: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: '0.8rem', opacity: 0.84 }}>Status</div>
+              <div style={{ fontWeight: 800, fontSize: '1rem', marginTop: 3 }}>
+                {aiActive ? 'THINKING' : 'READY'}
+              </div>
+              <div style={{ fontSize: '0.82rem', marginTop: 6, opacity: 0.8 }}>
+                {aiActive ? 'Live ranking in progress' : 'Waiting for a request'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            borderRadius: 16,
+            padding: '1rem 1.15rem',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            boxShadow: '0 12px 24px rgba(15, 23, 42, 0.06)',
+          }}
+        >
+          <div style={{ color: '#6b7280', fontSize: '0.85rem', marginBottom: 8 }}>What the AI is doing</div>
+          <ul style={{ margin: 0, paddingLeft: 18, color: '#111827', lineHeight: 1.55 }}>
+            <li>Ordena conductores por idoneidad para la request activa.</li>
+            <li>Expone el ranking en vivo y la latencia de inferencia.</li>
+            <li>Permite ver cuándo el sistema necesita intervención humana.</li>
+          </ul>
+        </div>
+      </section>
 
       {/* KPIs */}
       <section
@@ -236,6 +364,14 @@ export default function ControlTowerPage() {
           ))}
         </MapContainer>
       </section>
+
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(0.92); opacity: 0.75; }
+          50% { transform: scale(1.08); opacity: 1; }
+          100% { transform: scale(0.92); opacity: 0.75; }
+        }
+      `}</style>
     </div>
   );
 }
