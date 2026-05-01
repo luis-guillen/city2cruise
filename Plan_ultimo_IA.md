@@ -4,6 +4,16 @@
 
 **Goal:** Cerrar los hitos 3.4, 3.5, 5.4 y 6.5 de IA/RL del documento `docs/history/HOJA_DE_RUTA_DE_DESARROLLO.docx`, dejando el sistema con generador de datos sintéticos masivos, re-planificación autónoma activa, twin con escenarios reales del puerto, sync backend↔twin productivo, intervención manual desde la Torre de Control, y suite de validación de convergencia y fidelidad sim-to-real.
 
+**KPIs de IA/RL:** la IA de este proyecto no debe optimizar predicción genérica; debe mejorar la decisión de dispatch y rebalanceo. Los criterios de aceptación se resumen en 3 métricas:
+
+| KPI | Qué mide | Objetivo |
+|---|---|---|
+| `p95_match_seconds` | Tiempo de asignación en el peor 5% de casos | Bajar frente al baseline greedy o heurístico |
+| `mean_reward` y `mean_urgency_loss` | Calidad global de la policy y urgencia no atendida | Subir `mean_reward` sin empeorar `mean_urgency_loss` |
+| `inference_ms_p95` | Latencia de inferencia del policy | Mantenerla dentro del presupuesto de tiempo real |
+
+Regla de promoción: solo desplegar una policy si mejora `mean_reward` frente a greedy, no empeora `mean_urgency_loss` y cumple latencia.
+
 **Architecture:** El plan **no reescribe** lo ya hecho (StateFusion + Kalman + DBSCAN + ETA + urgency en `backend/src/services/telemetry/*`, agente PPO en `rl_service/`, twin stub en `digital_twin/`, ControlTowerPage en `cruise-connect-main`). Solo añade los faltantes reales detectados: (1) un generador sintético exportable, (2) reasignación real (no advisory) en `rebalanceFleetJob`, (3) sync de eventos backend→twin en producción, (4) escenarios físicos con tráfico/cruceros en el twin, (5) intervención humana en la torre, (6) suite de evaluación 6.5, y (7) docker/CI completos. MiroFish queda como adapter posterior detrás del `TwinClient` actual.
 
 **Tech Stack:** TypeScript 5.9 + Express 5 (backend), Python 3.10 + FastAPI + Gymnasium + Stable-Baselines3 (rl_service & digital_twin), PostgreSQL 15 + PostGIS, React + Leaflet (frontend), socket.io (eventos), pytest + jest, Docker Compose, GitHub Actions.

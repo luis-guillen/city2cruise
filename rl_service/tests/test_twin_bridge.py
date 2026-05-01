@@ -105,3 +105,30 @@ def test_train_skips_if_no_train_method(patched_client):
     c = TwinClient(base_url="http://twin-mock")
     out = train_with_twin_scenarios(object(), twin=c, n_scenarios=1)
     assert out["train_metrics"]["skipped"] is True
+
+
+def test_twin_client_switches_to_mirofish_provider(monkeypatch):
+    class DummyAdapter:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def health(self):
+            return {"status": "ok", "provider": "mirofish"}
+
+        def get_state(self, simulation_id=None):
+            return {"data": {"simulation_id": simulation_id or "sim-1"}}
+
+        def get_aggregates(self, simulation_id=None):
+            return {"lockers_total": 1}
+
+        def run_scenario(self, **kwargs):
+            return {"requests_simulated": 1, "kwargs": kwargs}
+
+    monkeypatch.setenv("TWIN_PROVIDER", "mirofish")
+    monkeypatch.setenv("MIROFISH_BASE_URL", "http://mirofish.local")
+    monkeypatch.setenv("MIROFISH_PROJECT_ID", "proj-1")
+    monkeypatch.setattr("rl_service.twin_bridge.MiroFishTwinAdapter", DummyAdapter)
+
+    client = TwinClient()
+    assert isinstance(client._impl, DummyAdapter)
+    assert client.health()["provider"] == "mirofish"

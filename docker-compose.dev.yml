@@ -122,6 +122,11 @@ services:
       VALIDATOR_LEDGER_C_URL: http://ledger-c:4001
       RL_SERVICE_URL: http://rl_service:8080
       TWIN_URL: http://digital_twin:8090
+      TWIN_PROVIDER: ${TWIN_PROVIDER:-internal}
+      MIROFISH_BASE_URL: ${MIROFISH_BASE_URL:-}
+      MIROFISH_API_KEY: ${MIROFISH_API_KEY:-}
+      MIROFISH_PROJECT_ID: ${MIROFISH_PROJECT_ID:-}
+      MIROFISH_GRAPH_ID: ${MIROFISH_GRAPH_ID:-}
     volumes:
       - ./backend/src:/app/src
     command: ["npm", "run", "dev"]
@@ -177,6 +182,11 @@ services:
       RL_MODEL_PATH: /tmp/cruise_dispatch_ppo
       BACKEND_URL: http://backend:9000
       TWIN_URL: http://digital_twin:8090
+      TWIN_PROVIDER: ${TWIN_PROVIDER:-internal}
+      MIROFISH_BASE_URL: ${MIROFISH_BASE_URL:-}
+      MIROFISH_API_KEY: ${MIROFISH_API_KEY:-}
+      MIROFISH_PROJECT_ID: ${MIROFISH_PROJECT_ID:-}
+      MIROFISH_GRAPH_ID: ${MIROFISH_GRAPH_ID:-}
     volumes:
       - ./rl_service:/app/rl_service
     command: ["uvicorn", "rl_service.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]

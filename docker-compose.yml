@@ -90,6 +90,11 @@ services:
       VALIDATOR_LEDGER_C_URL: http://ledger-c:4001
       RL_SERVICE_URL: http://rl_service:8080
       TWIN_URL: http://digital_twin:8090
+      TWIN_PROVIDER: ${TWIN_PROVIDER:-internal}
+      MIROFISH_BASE_URL: ${MIROFISH_BASE_URL:-}
+      MIROFISH_API_KEY: ${MIROFISH_API_KEY:-}
+      MIROFISH_PROJECT_ID: ${MIROFISH_PROJECT_ID:-}
+      MIROFISH_GRAPH_ID: ${MIROFISH_GRAPH_ID:-}
     depends_on:
       db:
         condition: service_healthy
@@ -147,6 +152,11 @@ services:
       RL_MODEL_PATH: /tmp/cruise_dispatch_ppo
       BACKEND_URL: http://backend:9000
       TWIN_URL: http://digital_twin:8090
+      TWIN_PROVIDER: ${TWIN_PROVIDER:-internal}
+      MIROFISH_BASE_URL: ${MIROFISH_BASE_URL:-}
+      MIROFISH_API_KEY: ${MIROFISH_API_KEY:-}
+      MIROFISH_PROJECT_ID: ${MIROFISH_PROJECT_ID:-}
+      MIROFISH_GRAPH_ID: ${MIROFISH_GRAPH_ID:-}
     depends_on:
       backend:
         condition: service_healthy

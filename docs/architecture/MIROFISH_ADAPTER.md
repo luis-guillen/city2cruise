@@ -2,194 +2,162 @@
 
 ## Objetivo
 
-Este documento define cómo integrar un proveedor externo de twin llamado `MiroFish` sin reescribir la lógica AI/RL ya cerrada. La integración debe preservar el contrato actual consumido por `rl_service` y dejar al `TwinClient` como punto único de adaptación.
+Integrar `MiroFish` como proveedor alternativo del gemelo digital sin romper el contrato actual de `rl_service`.
 
-La idea es simple:
+El selector será:
 
-- `rl_service` sigue hablando con un `TwinClient`
-- el proveedor se selecciona por configuración
-- si el proveedor es `mirofish`, solo cambian `base_url`, autenticación y mapping de schemas
+- `TWIN_PROVIDER=internal`
+- `TWIN_PROVIDER=mirofish`
 
-## Estado actual
+`TwinClient` seguirá siendo la fachada estable. Cuando el proveedor sea `mirofish`, la lógica HTTP real vivirá en `MiroFishTwinAdapter`.
 
-El contrato interno vigente está implementado en [rl_service/twin_bridge.py](/Users/luisguillen/Documents/Reker/APP_TRASNPORTE_LOCKERS_BARCELONA/rl_service/twin_bridge.py:1).
+## Contrato Real De MiroFish
 
-Hoy `TwinClient` espera estos endpoints:
+MiroFish no expone un `POST /scenario/run` nativo en la rama principal que revisamos. El flujo real de simulación es un lifecycle con estos endpoints:
 
 - `GET /health`
-- `GET /state`
-- `GET /state/aggregates`
-- `POST /scenario/run`
+- `POST /api/simulation/create`
+- `POST /api/simulation/prepare`
+- `POST /api/simulation/prepare/status`
+- `GET /api/simulation/<simulation_id>`
 
-Y consume respuestas JSON orientadas a:
+La base del backend está documentada en el repo en `http://localhost:5001` para desarrollo y usa blueprints bajo `/api/*`.
 
-- snapshot completo del twin
-- agregados operativos
-- ejecución de escenarios de simulación
+## Auth
 
-## Estrategia de adapter
+En el estado actual del repo no vimos auth obligatoria activa en esos endpoints.
 
-`TwinClient` debe seguir siendo la fachada estable para `rl_service`.
+El adapter debe soportar auth configurable por compatibilidad y hardening:
 
-La integración con `MiroFish` no debería cambiar:
+- `Authorization: Bearer ${MIROFISH_API_KEY}`
+- `X-API-Key: ${MIROFISH_API_KEY}`
 
-- [rl_service/main.py](/Users/luisguillen/Documents/Reker/APP_TRASNPORTE_LOCKERS_BARCELONA/rl_service/main.py:1)
-- el endpoint `POST /train_from_twin`
-- la lógica `train_with_twin_scenarios(...)`
+Si `MIROFISH_API_KEY` no está presente, el adapter no enviará cabeceras de auth.
 
-Solo debería añadir:
+## Variables De Entorno
 
-- selección de proveedor
-- autenticación para `MiroFish`
-- funciones de mapping `MiroFish -> internal schema`
-
-## Variables de entorno
-
-Variables nuevas propuestas:
+Variables nuevas que usa el adapter:
 
 - `TWIN_PROVIDER=internal|mirofish`
-- `MIROFISH_BASE_URL=https://...`
-- `MIROFISH_API_KEY=...`
+- `MIROFISH_BASE_URL`
+- `MIROFISH_API_KEY`
+- `MIROFISH_PROJECT_ID`
+- `MIROFISH_GRAPH_ID` opcional
+- `MIROFISH_SIMULATION_ID` opcional
 
-Variables ya existentes que se mantienen:
+Regla recomendada:
 
-- `TWIN_URL`
+1. `internal` es el valor por defecto.
+2. `mirofish` solo se activa cuando el entorno esté preparado.
+3. `MIROFISH_PROJECT_ID` es requerido para orquestar `create_simulation`.
 
-Regla de resolución recomendada:
+## Adapter Contract
 
-1. Si `TWIN_PROVIDER=internal`, usar `TWIN_URL`
-2. Si `TWIN_PROVIDER=mirofish`, usar `MIROFISH_BASE_URL`
-3. Si no hay `TWIN_PROVIDER`, asumir `internal` por compatibilidad
+`MiroFishTwinAdapter` debe hacer esto:
 
-## Endpoints esperados de MiroFish
+1. `health()`
+   - llama `GET /health`
 
-Se asume que `MiroFish` puede exponer una API equivalente, aunque no necesariamente idéntica, a estos contratos:
+2. `create_simulation()`
+   - llama `POST /api/simulation/create`
+   - requiere `project_id`
+   - puede pasar `graph_id` si está disponible
+
+3. `prepare_simulation()`
+   - llama `POST /api/simulation/prepare`
+   - soporta `entity_types`, `use_llm_for_profiles`, `parallel_profile_count`, `force_regenerate`
+
+4. `poll_prepare_status()`
+   - llama `POST /api/simulation/prepare/status`
+   - espera `ready` o `completed`
+
+5. `get_state()`
+   - llama `GET /api/simulation/<simulation_id>`
+   - si no se pasa `simulation_id`, usa el último creado o `MIROFISH_SIMULATION_ID`
+
+6. `run_scenario()`
+   - orquesta `create -> prepare -> poll -> get_state`
+   - devuelve un resumen compatible con `train_with_twin_scenarios()`
+   - incluye un `state_tensor` normalizado con:
+     - `drivers`
+     - `urgency`
+     - `lockers`
+     - `demandClusters`
+     - `activeRequestCount`
+
+## Mapeo Hacia `StateTensor`
+
+El adapter traduce la respuesta del sim backend a un `StateTensorInput` interno:
+
+- `drivers`:
+  - se usa `drivers`, `driver_states` o `agents` si existen
+  - se normalizan `lat`, `lon`, `speedMps`, `sigmaM` y vectores
+
+- `urgency`:
+  - se usa `urgency`, `urgency_scores` o se deriva de `requests`
+
+- `lockers`:
+  - se deriva de `lockers`, `slots` o de `aggregates`
+
+- `demandClusters`:
+  - se usa `demandClusters`, `demand_clusters` o `clusters`
+
+- `activeRequestCount`:
+  - se deriva de `requests` o `aggregates.requests_active`
+
+## Contract Tests
+
+La integración debe quedar blindada con tests de contrato usando `httpx.MockTransport`:
+
+- `health` responde bien
+- `create_simulation` envía `project_id` y `graph_id`
+- `prepare_simulation` manda `simulation_id`
+- `poll_prepare_status` resuelve `ready`
+- `get_state` devuelve el snapshot de la simulación
+- `run_scenario` produce `state_tensor` y métricas de resumen
+- el selector `TWIN_PROVIDER=mirofish` cambia la implementación sin tocar el contrato público
+
+## Criterio De Aceptación
+
+La integración se considera lista cuando:
+
+- `TWIN_PROVIDER=internal` sigue funcionando exactamente como antes
+- `TWIN_PROVIDER=mirofish` activa el adapter nuevo
+- `train_from_twin` sigue devolviendo un resumen válido
+- los contract tests pasan
+- la configuración de deploy expone las variables nuevas
+
+## Smoke Operativo
+
+Cuando haya una instancia viva de MiroFish disponible, el check recomendado es:
+
+```bash
+python scripts/smoke_mirofish.py \
+  --base-url "$MIROFISH_BASE_URL" \
+  --project-id "$MIROFISH_PROJECT_ID" \
+  --graph-id "$MIROFISH_GRAPH_ID" \
+  --api-key "$MIROFISH_API_KEY"
+```
+
+Si quieres un smoke autocontenido que genere un proyecto local más rico y construya el grafo antes de ejecutar el flujo, usa:
+
+```bash
+python scripts/smoke_mirofish.py \
+  --base-url "$MIROFISH_BASE_URL" \
+  --api-key "$MIROFISH_API_KEY" \
+  --bootstrap
+```
+
+Ese script valida:
 
 - `GET /health`
-- `GET /state`
-- `GET /state/aggregates`
-- `POST /scenario/run`
+- `POST /api/simulation/create`
+- `POST /api/simulation/prepare`
+- `POST /api/simulation/prepare/status`
+- `GET /api/simulation/<simulation_id>`
+- el flujo completo de `run_scenario()`
 
-Si `MiroFish` expone nombres distintos, el adapter debe resolverlo internamente. El resto del sistema no debe enterarse.
+## Nota Operativa
 
-Contrato lógico esperado:
-
-- `GET /state`
-  - snapshot de drivers, demanda, lockers, urgencia y requests activas
-- `GET /state/aggregates`
-  - KPIs de estado resumidos para observabilidad o entrenamiento
-- `POST /scenario/run`
-  - ejecución de escenario con parámetros de duración, tasa de demanda, flota y seed
-
-## Mapping de schemas
-
-El adapter debe transformar la respuesta de `MiroFish` al contrato interno que hoy espera `TwinClient`.
-
-Campos mínimos que el flujo actual necesita conservar:
-
-- `requests_simulated`
-- métricas agregadas por escenario
-- estado legible para entrenamiento y validación
-
-Mapping orientativo:
-
-- `MiroFish vessel urgency` -> `urgency`
-- `MiroFish fleet positions` -> `drivers`
-- `MiroFish storage/slots` -> `lockers`
-- `MiroFish demand hotspots` -> `demandClusters`
-- `MiroFish simulation summary` -> `scenario/run` result
-
-Si `MiroFish` devuelve más detalle, el adapter puede ignorarlo. Si devuelve menos, debe completar defaults explícitos o fallar con error claro.
-
-## Autenticación
-
-Para `MiroFish` se recomienda:
-
-- header `Authorization: Bearer ${MIROFISH_API_KEY}`
-
-Alternativas aceptables si el proveedor lo exige:
-
-- `X-API-Key: ${MIROFISH_API_KEY}`
-- firma HMAC adicional
-
-La autenticación debe vivir dentro del adapter, no en `main.py`.
-
-## Manejo de errores
-
-Requisitos del adapter:
-
-- timeout explícito
-- `raise_for_status()` en respuestas no `2xx`
-- errores de mapping con contexto suficiente
-- degradación limpia hacia `502` en `rl_service` cuando el twin externo no sea accesible
-
-No se debe mezclar lógica de negocio RL con parsing específico de `MiroFish`.
-
-## Diseño recomendado
-
-Opción mínima:
-
-- mantener una sola clase `TwinClient`
-- añadir selección por `TWIN_PROVIDER`
-- introducir helpers privados de mapping para `mirofish`
-
-Opción más limpia si se quiere crecer:
-
-- `BaseTwinClient`
-- `InternalTwinClient`
-- `MiroFishTwinClient`
-
-La segunda opción es preferible si `MiroFish` se desvía bastante del contrato interno.
-
-## Plan de contract tests
-
-La integración no debe validarse solo con tests e2e contra un proveedor real. Debe existir una capa de contract tests con mock.
-
-Cobertura mínima recomendada:
-
-1. `health`
-   - `MiroFish` responde `200`
-   - el adapter devuelve payload compatible
-
-2. `get_state`
-   - respuesta completa de `MiroFish`
-   - mapping correcto a snapshot interno
-
-3. `get_aggregates`
-   - mapping de KPIs y nombres de campos
-
-4. `run_scenario`
-   - el adapter envía duración, flota, tasa y `seed`
-   - el resultado devuelve `requests_simulated` y métricas esperadas
-
-5. autenticación
-   - el mock debe verificar presencia del header requerido
-
-6. errores
-   - `401/403` del proveedor
-   - `5xx` del proveedor
-   - payload malformado
-   - timeout
-
-Herramienta recomendada:
-
-- tests Python con `pytest`
-- mock HTTP con `respx` o `httpx.MockTransport`
-
-## Criterio de aceptación
-
-La integración con `MiroFish` puede considerarse lista cuando:
-
-- `train_from_twin` sigue funcionando sin cambios de API pública
-- cambiar `TWIN_PROVIDER=internal` a `TWIN_PROVIDER=mirofish` no requiere tocar el resto del servicio
-- los contract tests pasan
-- los escenarios siguen produciendo métricas compatibles con `validate_ai_release.py`
-
-## Impacto en roadmap
-
-Este adapter es un follow-up post-roadmap. No bloquea el cierre de los hitos AI/RL ya implementados, pero deja preparado el punto de extensión correcto para sustituir el twin interno por un proveedor externo sin romper:
-
-- entrenamiento sim-to-real
-- release gate
-- validación de escenarios
-- futuras integraciones de torre/control operativo
+Como el repo actual de MiroFish está orientado a simulaciones de propósito general y no a logística portuaria, el adapter se limita a traducir la respuesta del lifecycle de simulación al `StateTensor` que consume `rl_service`.
+Si más adelante MiroFish expone campos más específicos para la torre o para el dominio de puertos, el mapping se podrá enriquecer sin cambiar el contrato externo del RL.

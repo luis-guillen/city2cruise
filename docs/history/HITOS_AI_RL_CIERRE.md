@@ -6,7 +6,8 @@
 - Hito 3.5: Cerrado
 - Hito 5.4: Cerrado
 - Hito 6.5: Cerrado
-- Pendiente fuera de roadmap: adapter MiroFish
+- Adapter MiroFish: documentado e integrado como proveedor alternativo
+- Smoke operativo MiroFish: script y job manual en CI para validación con instancia viva
 
 ## Hito 3.4
 
@@ -47,5 +48,6 @@ Evidencias:
 
 - Staging: `RL_ROUTING_ENABLED=true`
 - Staging: `RL_REBALANCE_ACTIVE=true`
+- Staging: `TWIN_PROVIDER=internal` por defecto; cambiar a `mirofish` solo con `MIROFISH_PROJECT_ID` configurado
 - Backend con `RL_SERVICE_URL` apuntando a `rl_service`
 - Backend con `TWIN_URL` apuntando a `digital_twin`
