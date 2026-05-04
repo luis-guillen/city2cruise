@@ -102,13 +102,14 @@ services:
       start_period: 5s
 
   backend:
+    image: app_trasnporte_lockers_barcelona-backend-dev
     build:
       context: ./backend
       target: builder
     env_file:
       - ./backend/.env
     ports:
-      - "9000:9000"
+      - "9001:9000"
     environment:
       NODE_ENV: development
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
@@ -144,15 +145,16 @@ services:
     restart: unless-stopped
 
   frontend:
+    image: app_trasnporte_lockers_barcelona-frontend-dev
     build:
       context: ./cruise-connect-main
       target: builder
     ports:
       - "9100:9100"
     environment:
-      VITE_API_URL: http://localhost:9000/api
-      VITE_SOCKET_URL: http://localhost:9000
-      VITE_TWIN_URL: http://localhost:8090
+      VITE_API_URL: http://localhost:9001/api
+      VITE_SOCKET_URL: http://localhost:9001
+      VITE_TWIN_URL: http://localhost:8091
     volumes:
       - ./cruise-connect-main/src:/app/src
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
@@ -161,9 +163,10 @@ services:
     restart: unless-stopped
 
   digital_twin:
+    image: app_trasnporte_lockers_barcelona-digital_twin-dev
     build: ./digital_twin
     ports:
-      - "8090:8090"
+      - "8091:8090"
     environment:
       TWIN_ENV: simulation
     restart: unless-stopped
@@ -175,9 +178,10 @@ services:
       start_period: 10s
 
   rl_service:
+    image: app_trasnporte_lockers_barcelona-rl_service-dev
     build: ./rl_service
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
       RL_MODEL_PATH: /tmp/cruise_dispatch_ppo
       BACKEND_URL: http://backend:9000

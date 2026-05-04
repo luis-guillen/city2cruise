@@ -24,6 +24,6 @@ USER node
 EXPOSE 9000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
-    CMD wget --spider -q http://localhost:9000/api/health || exit 1
+    CMD node -e "require('http').get('http://127.0.0.1:9000/api/health', res => { if (res.statusCode !== 200) process.exit(1); res.resume(); }).on('error', () => process.exit(1))"
 
 CMD ["node", "dist/index.js"]
