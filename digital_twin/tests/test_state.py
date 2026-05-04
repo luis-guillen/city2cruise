@@ -22,11 +22,11 @@ def _ts():
 
 def test_seed_initial_state():
     s = TwinStore()
-    assert len(s.lockers) == 5
+    assert len(s.lockers) == 35
     assert len(s.drivers) == 3
     assert len(s.requests) == 0
     agg = s.compute_aggregates()
-    assert agg.lockers_free == 5
+    assert agg.lockers_free == 35
     assert agg.lockers_occupied == 0
     assert agg.drivers_available == 3
 
@@ -42,7 +42,7 @@ def test_locker_status_changed():
     assert s.lockers[1].status == LockerStatus.occupied
     assert s.lockers[1].occupancy_pct == 75
     agg = s.compute_aggregates()
-    assert agg.lockers_free == 4
+    assert agg.lockers_free == 34
     assert agg.lockers_occupied == 1
 
 

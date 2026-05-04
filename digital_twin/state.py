@@ -39,17 +39,16 @@ class TwinStore:
         self._seed_default()
 
     def _seed_default(self) -> None:
-        """Seed estático: 5 lockers en Las Palmas + 3 drivers."""
-        seeds = [
-            (1, "L-LP-01", 28.1235, -15.4363),
-            (2, "L-LP-02", 28.1289, -15.4321),
-            (3, "L-LP-03", 28.1298, -15.4445),
-            (4, "L-LP-04", 28.1180, -15.4290),
-            (5, "L-LP-05", 28.1322, -15.4385),
-        ]
-        for lid, label, lat, lon in seeds:
+        """Seed estático: 35 lockers en Las Palmas + 3 drivers."""
+        base_lat = 28.1235
+        base_lon = -15.4363
+        for lid in range(1, 36):
+            row = (lid - 1) // 7
+            col = (lid - 1) % 7
+            lat = base_lat + (row * 0.0021)
+            lon = base_lon + (col * 0.0018)
             self.lockers[lid] = LockerState(
-                id=lid, label=label, latitude=lat, longitude=lon,
+                id=lid, label=f"L-LP-{lid:02d}", latitude=lat, longitude=lon,
                 status=LockerStatus.free, occupancy_pct=0,
                 last_change_at=_now(),
             )
