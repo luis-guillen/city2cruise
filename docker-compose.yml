@@ -76,18 +76,27 @@ services:
 
   backend:
     build: ./backend
+    env_file:
+      - ./backend/.env
     ports:
       - "9000:9000"
     environment:
       NODE_ENV: production
-      JWT_SECRET: ${JWT_SECRET}
-      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_change_in_prod}
+      JWT_SECRET: ${JWT_SECRET:-d9ac5631485346636375c2a102a60325f760c2fe5b3ad5fc2f190849431a4eee}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-dev_refresh_secret_change_for_local_only_32bytes!}
+      AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-cb35c0b570c7b357a45064ed5fcb740e4822b776bf9497ca47ec883583ffb922}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-dev_field_enc_key_32bytes_change!!}
       DATABASE_URL: postgres://cruise:cruise_secret@db:5432/cruise_connect
       FRONTEND_URL: http://localhost
       VALIDATOR_INTERNAL_KEY: ${VALIDATOR_INTERNAL_KEY:-dev_validator_key}
       VALIDATOR_LEDGER_A_URL: http://ledger-a:4001
       VALIDATOR_LEDGER_B_URL: http://ledger-b:4001
       VALIDATOR_LEDGER_C_URL: http://ledger-c:4001
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev_internal_key_change_in_prod}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_dev_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_dev_placeholder}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-BGEY4zTlQko1Qf9AXG7qXzT_GUZb-q7lDMY9kREhEBj77sLSyzvr7kIN86UA7jnA1vmqQcx4vWomQqZMRY6amf0}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-GOw9Gi61Qw181kLUn4DMyCacyiJJjvQB7FBqJxCPuGQ}
       RL_SERVICE_URL: http://rl_service:8080
       TWIN_URL: http://digital_twin:8090
       TWIN_PROVIDER: ${TWIN_PROVIDER:-internal}
@@ -106,7 +115,13 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/health"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:9000/api/health', res => { if (res.statusCode !== 200) process.exit(1); res.resume(); }).on('error', () => process.exit(1))",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
