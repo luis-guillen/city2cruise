@@ -3,6 +3,7 @@ import { config } from '../config/env';
 import { authMiddleware as authenticate, requireRole } from '../auth/middleware';
 import {
     createPaymentIntent,
+    confirmPaymentIntent,
     capturePayment,
     refundPayment,
     getPaymentHistory,
@@ -49,38 +50,12 @@ router.post('/confirm', authenticate, requireRole('CLIENT'), async (req: Request
         if (!requestId || !paymentIntentId) {
             throw new ServiceError(400, 'BAD_REQUEST', 'requestId y paymentIntentId son obligatorios');
         }
-
-        const { rows: [payment] } = await db.query(
-            `SELECT id, status, stripe_payment_intent_id FROM payments
-             WHERE request_id = $1 AND client_id = $2
-             ORDER BY created_at DESC LIMIT 1`,
-            [Number(requestId), clientId],
-        );
-
-        if (!payment) throw new ServiceError(404, 'NOT_FOUND', 'Pago no encontrado para este pedido');
-        if (payment.stripe_payment_intent_id !== paymentIntentId) {
-            throw new ServiceError(400, 'BAD_REQUEST', 'PaymentIntent no coincide con el pedido');
-        }
-
-        // Verificar estado real en Stripe
-        const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-        if (intent.status === 'requires_capture') {
-            await db.query(
-                `UPDATE payments SET status = 'AUTHORIZED', updated_at = NOW() WHERE id = $1`,
-                [payment.id],
-            );
-            logger.info({ requestId, paymentIntentId }, 'Payment confirmed as AUTHORIZED');
-            res.json({ status: 'AUTHORIZED' });
-        } else if (intent.status === 'succeeded') {
-            await db.query(
-                `UPDATE payments SET status = 'CAPTURED', captured_at = NOW(), updated_at = NOW() WHERE id = $1`,
-                [payment.id],
-            );
-            res.json({ status: 'CAPTURED' });
-        } else {
-            res.json({ status: intent.status });
-        }
+        const result = await confirmPaymentIntent({
+            requestId: Number(requestId),
+            clientId,
+            paymentIntentId,
+        });
+        res.json(result);
     } catch (err) {
         next(err);
     }

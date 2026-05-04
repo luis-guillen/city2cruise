@@ -9,6 +9,8 @@ import { isInsideServiceArea, getRandomLasPalmasLocation } from "@/utils/geofenc
  * - Si el GPS real está disponible y dentro de la zona operativa → usa GPS real
  * - Si el GPS real está fuera de la zona → marca `outsideZone = true`
  * - Si el GPS falla o no hay permisos → usa ubicación aleatoria en Las Palmas como fallback demo
+ * - En demo, la posición local sigue sincronizándose al backend para que el driver
+ *   aparezca como activo y reciba solicitudes en la cascada.
  *
  * @param enabled      Solo emitir cuando true (usuario es DRIVER y está logueado)
  * @param fallbackCoords  Coordenadas de fallback del usuario (de BD). Si no hay, genera random en Las Palmas.
@@ -40,19 +42,29 @@ export function useDriverGeoLocation(
     useEffect(() => {
         if (!enabled) return;
         const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
+        let lastEmitted: { lat: number; lon: number } | null = null;
 
         // Hito 4.2.2 — throttle de la emision al servidor a 1 update/seg
         // (la posicion local se sigue actualizando para mantener UI suave).
         const emitToServer = throttle((lat: number, lon: number) => {
-            if (socket.connected && !_isDemoAccount) {
+            if (socket.connected) {
                 socket.emit("driver:location:update", { lat, lon });
             }
         }, 1000);
         const emit = (lat: number, lon: number) => {
+            lastEmitted = { lat, lon };
             setLocation({ lat, lon });
             setOutsideZone(!isInsideServiceArea(lat, lon));
             emitToServer(lat, lon);
+            window.dispatchEvent(new CustomEvent('driver:location:updated', { detail: { lat, lon } }));
         };
+        const onSocketConnect = () => {
+            if (lastEmitted) {
+                socket.emit("driver:location:update", lastEmitted);
+            }
+        };
+
+        socket.on('connect', onSocketConnect);
 
         if (isDemo) {
             const fb = getFallback();
@@ -60,6 +72,7 @@ export function useDriverGeoLocation(
             setOutsideZone(false);
             emit(fb[0], fb[1]);
             return () => {
+                socket.off('connect', onSocketConnect);
                 emitToServer.cancel();
             };
         }
@@ -115,6 +128,7 @@ export function useDriverGeoLocation(
                 navigator.geolocation.clearWatch(watchIdRef.current);
                 watchIdRef.current = null;
             }
+            socket.off('connect', onSocketConnect);
             emitToServer.cancel();
         };
     }, [enabled, fallbackLat, fallbackLon, _isDemoAccount]);

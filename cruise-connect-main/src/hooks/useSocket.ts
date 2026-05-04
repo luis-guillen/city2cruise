@@ -61,7 +61,14 @@ export const useSocket = () => {
             }
         });
 
+        socket.on('connect', () => {
+            void Promise.resolve(refreshData()).catch((err) => {
+                logger.debug('Socket connect refresh failed', err);
+            });
+        });
+
         return () => {
+            socket.off('connect');
             socket.off('request:new');
             socket.off('new:pickup:request');
             socket.off('request:updated');

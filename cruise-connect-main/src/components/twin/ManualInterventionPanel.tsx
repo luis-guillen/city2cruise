@@ -44,7 +44,7 @@ export function ManualInterventionPanel({
     >
       <h2 style={{ marginTop: 0, marginBottom: '0.75rem' }}>Intervención manual</h2>
       <p style={{ marginTop: 0, color: '#4b5563' }}>
-        Request #{requestId}
+        Solicitud #{requestId}
       </p>
 
       <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -61,7 +61,7 @@ export function ManualInterventionPanel({
             cursor: busyAction ? 'default' : 'pointer',
           }}
         >
-          {busyAction === 'cancel' ? 'Cancelando...' : 'Cancelar request'}
+          {busyAction === 'cancel' ? 'Cancelando...' : 'Cancelar solicitud'}
         </button>
 
         <label style={{ display: 'grid', gap: '0.35rem' }}>
@@ -94,7 +94,7 @@ export function ManualInterventionPanel({
             cursor: busyAction || !driverIdInput.trim() ? 'default' : 'pointer',
           }}
         >
-          {busyAction === 'assign' ? 'Asignando...' : 'Force-assign driver'}
+          {busyAction === 'assign' ? 'Asignando...' : 'Forzar asignacion de conductor'}
         </button>
       </div>
 

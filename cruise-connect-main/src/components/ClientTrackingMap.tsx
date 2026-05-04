@@ -11,8 +11,9 @@ const LOCKER_DESTINATION = { lat: 28.1505, lon: -15.4145 };
 function MapUpdater({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
+    map.stop();
     map.invalidateSize();
-    map.flyTo(center, map.getZoom(), { duration: 1.2 });
+    map.flyTo(center, map.getZoom(), { duration: 0.35 });
   }, [center, map]);
   return null;
 }
