@@ -8,10 +8,12 @@ import {
 } from '@stripe/react-stripe-js';
 import { createPaymentIntent, confirmPayment } from '@/services/api';
 import GlassCard from '@/components/ios/GlassCard';
-import { CreditCard, ShieldCheck, Package, Lock } from 'lucide-react';
+import { CreditCard, ShieldCheck, Package, Lock, Sparkles, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || '');
+const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+const stripePublicKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY || '';
+const stripePromise = isDemoMode || !stripePublicKey ? null : loadStripe(stripePublicKey);
 
 const PACKAGE_LABELS: Record<string, string> = {
   SMALL: 'Pequeño',
@@ -182,6 +184,111 @@ function CheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, on
   );
 }
 
+interface DemoCheckoutProps {
+  requestId: number;
+  packageSize: string;
+  amountCents: number;
+  paymentIntentId: string;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+function DemoCheckoutForm({ requestId, packageSize, amountCents, paymentIntentId, onSuccess, onCancel }: DemoCheckoutProps) {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const amountEuros = (amountCents / 100).toFixed(2);
+
+  const handleDemoPayment = async () => {
+    setIsProcessing(true);
+    setErrorMsg('');
+    try {
+      await confirmPayment(requestId, paymentIntentId);
+      toast.success('Pago demo completado');
+      onSuccess();
+    } catch {
+      setErrorMsg('No se pudo completar el pago demo');
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-[14px] border border-[var(--ios-blue)]/15 bg-[var(--ios-blue)]/6 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles className="w-4 h-4 text-[var(--ios-blue)]" />
+          <p className="text-[13px] font-semibold text-[var(--ios-blue)] uppercase tracking-wide">Modo demo</p>
+        </div>
+        <p className="text-[13px] text-[var(--ios-text-secondary)] leading-relaxed">
+          Este pago no usa Stripe real. Sirve para demostración y deja la solicitud lista para continuar el flujo.
+        </p>
+      </div>
+
+      <div className="bg-black/[0.03] rounded-[14px] p-4 border border-black/[0.06]">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 rounded-[10px] bg-[var(--ios-blue)]/10 flex items-center justify-center">
+            <Package className="w-4 h-4 text-[var(--ios-blue)]" />
+          </div>
+          <div>
+            <p className="font-semibold text-[var(--ios-text-primary)]">
+              {PACKAGE_LABELS[packageSize] || packageSize}
+            </p>
+            <p className="text-[12px] text-[var(--ios-text-secondary)]">City2Cruise Demo Checkout</p>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="text-[18px] font-bold text-[var(--ios-blue)]">{amountEuros} €</p>
+            <p className="text-[11px] text-[var(--ios-text-tertiary)]">Simulación</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-[12px] text-[var(--ios-text-tertiary)]">
+          <ShieldCheck className="w-3.5 h-3.5 text-[var(--ios-green)] flex-shrink-0" />
+          <span>La operación se marca como autorizada al pulsar “Simular pago”</span>
+        </div>
+      </div>
+
+      <div className="rounded-[14px] overflow-hidden border border-black/[0.06] bg-white/80 backdrop-blur-xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Rocket className="w-4 h-4 text-[var(--ios-text-secondary)]" />
+          <p className="font-medium text-[var(--ios-text-secondary)]">Demo activa</p>
+        </div>
+        <div className="rounded-[12px] border border-dashed border-black/10 bg-black/[0.02] px-4 py-5 text-center">
+          <p className="text-[13px] text-[var(--ios-text-secondary)] mb-1">No se envían datos de tarjeta</p>
+          <p className="text-[12px] text-[var(--ios-text-tertiary)]">PaymentIntent: {paymentIntentId}</p>
+        </div>
+      </div>
+
+      {errorMsg && (
+        <div className="bg-[var(--ios-red)]/8 border border-[var(--ios-red)]/20 rounded-[12px] px-4 py-3">
+          <p className="text-[13px] text-[var(--ios-red)] font-medium">{errorMsg}</p>
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isProcessing}
+          className="flex-1 ios-btn-ghost bg-black/5 disabled:opacity-40"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={handleDemoPayment}
+          disabled={isProcessing}
+          className="flex-[2] ios-btn-primary ios-btn-lg disabled:opacity-60"
+        >
+          {isProcessing ? (
+            <span className="ios-spinner border-white/30 border-t-white" />
+          ) : (
+            'Simular pago'
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Public component — loads intent and wraps Elements ───────────────────────
 interface StripeCheckoutProps {
   requestId: number;
@@ -196,18 +303,18 @@ export default function StripeCheckout({ requestId, packageSize, onSuccess, onCa
   const [amountCents, setAmountCents] = useState(PACKAGE_PRICES[packageSize] ?? 500);
   const [loadError, setLoadError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [demoCheckout, setDemoCheckout] = useState(isDemoMode);
 
   useEffect(() => {
     setIsLoading(true);
     setLoadError('');
 
     createPaymentIntent(requestId, packageSize)
-      .then(({ clientSecret: secret, paymentId, amountCents: cents }) => {
+      .then(({ clientSecret: secret, paymentId, amountCents: cents, demoMode, paymentIntentId: intentId }) => {
         setClientSecret(secret);
-        setPaymentIntentId(`pi_${paymentId}`);
+        setDemoCheckout(demoMode || isDemoMode);
+        setPaymentIntentId(intentId || `pi_${paymentId}`);
         setAmountCents(cents);
-        const intentId = secret.split('_secret_')[0];
-        setPaymentIntentId(intentId);
       })
       .catch(() => {
         setLoadError('No se pudo iniciar el pago. Inténtalo de nuevo.');
@@ -245,15 +352,12 @@ export default function StripeCheckout({ requestId, packageSize, onSuccess, onCa
         </div>
         <div>
           <h2 className="ios-title">Pago seguro</h2>
-          <p className="ios-caption">Datos de tarjeta</p>
+          <p className="ios-caption">{demoCheckout ? 'Modo demo sin tarjeta real' : 'Datos de tarjeta'}</p>
         </div>
       </div>
 
-      <Elements
-        stripe={stripePromise}
-        options={{ clientSecret, appearance: stripeAppearance }}
-      >
-        <CheckoutForm
+      {demoCheckout || !stripePromise ? (
+        <DemoCheckoutForm
           requestId={requestId}
           packageSize={packageSize}
           amountCents={amountCents}
@@ -261,7 +365,21 @@ export default function StripeCheckout({ requestId, packageSize, onSuccess, onCa
           onSuccess={onSuccess}
           onCancel={onCancel}
         />
-      </Elements>
+      ) : (
+        <Elements
+          stripe={stripePromise}
+          options={{ clientSecret, appearance: stripeAppearance }}
+        >
+          <CheckoutForm
+            requestId={requestId}
+            packageSize={packageSize}
+            amountCents={amountCents}
+            paymentIntentId={paymentIntentId}
+            onSuccess={onSuccess}
+            onCancel={onCancel}
+          />
+        </Elements>
+      )}
     </GlassCard>
   );
 }

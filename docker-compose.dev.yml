@@ -114,6 +114,7 @@ services:
       NODE_ENV: development
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
       AUDIT_HMAC_SECRET: ${AUDIT_HMAC_SECRET:-audit_secret_dev}
+      PAYMENTS_DEMO_MODE: "true"
       DATABASE_URL: postgres://cruise:cruise_secret@db:5432/cruise_connect
       FRONTEND_URL: http://localhost:9100
       REDIS_URL: redis://redis:6379
@@ -155,9 +156,10 @@ services:
       VITE_API_URL: http://localhost:9001/api
       VITE_SOCKET_URL: http://localhost:9001
       VITE_TWIN_URL: http://localhost:8091
+      VITE_DEMO_MODE: "true"
     volumes:
       - ./cruise-connect-main/src:/app/src
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "9100"]
     depends_on:
       - backend
     restart: unless-stopped

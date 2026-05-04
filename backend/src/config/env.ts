@@ -79,6 +79,14 @@ export const config = {
         })(),
         currency: process.env.STRIPE_CURRENCY || 'eur',
     },
+    payments: {
+        demoMode: process.env.NODE_ENV !== 'production'
+            && (
+                process.env.PAYMENTS_DEMO_MODE === 'true'
+                || !process.env.STRIPE_SECRET_KEY
+                || process.env.STRIPE_SECRET_KEY === 'sk_test_dev_placeholder'
+            ),
+    },
     noShowRefundMinutes: parseInt(process.env.NO_SHOW_REFUND_MINUTES || '30', 10),
     twilio: {
         accountSid: process.env.TWILIO_ACCOUNT_SID || '',

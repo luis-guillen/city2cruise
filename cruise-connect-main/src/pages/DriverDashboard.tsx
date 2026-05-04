@@ -80,6 +80,16 @@ export default function DriverDashboard() {
     });
   }, [userId, activePickup?.id, activePickup?.status, activePickup?.custodyChallenge]);
 
+  useEffect(() => {
+    const handler = () => {
+      refreshData().catch((err) => {
+        console.error('Error refreshing driver data after location update:', err);
+      });
+    };
+    window.addEventListener('driver:location:updated', handler);
+    return () => window.removeEventListener('driver:location:updated', handler);
+  }, [refreshData]);
+
   const handleLogout = () => { logout(); navigate('/'); };
 
   // Geofencing: bloquear si está fuera de zona

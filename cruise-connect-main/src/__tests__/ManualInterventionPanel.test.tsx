@@ -20,7 +20,7 @@ describe('ManualInterventionPanel', () => {
     interveneCancel.mockResolvedValue(undefined);
     render(<ManualInterventionPanel requestId={42} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /cancelar request/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancelar solicitud/i }));
 
     await waitFor(() => {
       expect(interveneCancel).toHaveBeenCalledWith(42, 'operator override');
@@ -33,7 +33,7 @@ describe('ManualInterventionPanel', () => {
     render(<ManualInterventionPanel requestId={7} />);
 
     fireEvent.change(screen.getByPlaceholderText(/id conductor/i), { target: { value: '99' } });
-    fireEvent.click(screen.getByRole('button', { name: /force-assign driver/i }));
+    fireEvent.click(screen.getByRole('button', { name: /forzar asignacion de conductor/i }));
 
     await waitFor(() => {
       expect(interveneForceAssign).toHaveBeenCalledWith(7, 99);

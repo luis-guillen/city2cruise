@@ -427,6 +427,8 @@ export interface PaymentIntent {
   clientSecret: string;
   paymentId: number;
   amountCents: number;
+  demoMode?: boolean;
+  paymentIntentId?: string;
 }
 
 export interface PaymentRecord {

@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { randomUUID } from 'crypto';
 import { db } from '../db/database';
 import { config } from '../config/env';
 import { logAuditEvent } from './AuditService';
@@ -6,6 +7,20 @@ import { logger } from '../utils/logger';
 import { ServiceError } from '../utils/errors';
 
 const stripe = new Stripe(config.stripe.secretKey, { apiVersion: '2026-04-22.dahlia' });
+const DEMO_INTENT_PREFIX = 'demo_pi_';
+const DEMO_CLIENT_SECRET_PREFIX = 'demo_';
+
+function isDemoPaymentIntentId(paymentIntentId: string): boolean {
+    return paymentIntentId.startsWith(DEMO_INTENT_PREFIX);
+}
+
+function createDemoPaymentIntentRecord(): { paymentIntentId: string; clientSecret: string } {
+    const paymentIntentId = `${DEMO_INTENT_PREFIX}${randomUUID().replace(/-/g, '')}`;
+    return {
+        paymentIntentId,
+        clientSecret: `${DEMO_CLIENT_SECRET_PREFIX}${paymentIntentId}_secret_demo`,
+    };
+}
 
 // Centavos por tamaño de paquete (precio base). Editable via pricing_rules en DB.
 const DEFAULT_PRICES_CENTS: Record<string, number> = {
@@ -30,7 +45,7 @@ export async function createPaymentIntent(params: {
     requestId: number;
     clientId: number;
     packageSize: string;
-}): Promise<{ clientSecret: string; paymentId: number; amountCents: number }> {
+}): Promise<{ clientSecret: string; paymentId: number; amountCents: number; demoMode: boolean; paymentIntentId: string }> {
     const { requestId, clientId, packageSize } = params;
 
     // Verificar que el pedido existe, pertenece al cliente y está en REQUESTED
@@ -46,7 +61,7 @@ export async function createPaymentIntent(params: {
 
     // Idempotencia: si ya existe un PaymentIntent activo para este pedido, devolverlo
     const { rows: [existing] } = await db.query(
-        `SELECT id, stripe_client_secret, amount_cents FROM payments
+        `SELECT id, stripe_client_secret, stripe_payment_intent_id, amount_cents FROM payments
          WHERE request_id = $1 AND status IN ('PENDING','AUTHORIZED')
          ORDER BY created_at DESC LIMIT 1`,
         [requestId],
@@ -56,11 +71,41 @@ export async function createPaymentIntent(params: {
             clientSecret: existing.stripe_client_secret,
             paymentId: existing.id,
             amountCents: existing.amount_cents,
+            demoMode: existing.stripe_client_secret.startsWith(DEMO_CLIENT_SECRET_PREFIX),
+            paymentIntentId: existing.stripe_payment_intent_id ?? existing.stripe_client_secret.split('_secret_')[0],
         };
     }
 
     const amountCents = await getPriceCents(packageSize);
     const currency = config.stripe.currency;
+
+    if (config.payments.demoMode) {
+        const demo = createDemoPaymentIntentRecord();
+        const { rows: [payment] } = await db.query(
+            `INSERT INTO payments
+               (request_id, client_id, amount_cents, currency, status, stripe_payment_intent_id, stripe_client_secret)
+             VALUES ($1, $2, $3, $4, 'PENDING', $5, $6)
+             RETURNING id`,
+            [requestId, clientId, amountCents, currency, demo.paymentIntentId, demo.clientSecret],
+        );
+
+        await logAuditEvent({
+            requestId,
+            eventType: 'PAYMENT_CREATED',
+            actorId: clientId,
+            metadata: { paymentIntentId: demo.paymentIntentId, amountCents, currency, demoMode: true },
+        });
+
+        logger.info({ requestId, paymentIntentId: demo.paymentIntentId, amountCents }, 'Demo payment intent created');
+
+        return {
+            clientSecret: demo.clientSecret,
+            paymentId: payment.id,
+            amountCents,
+            demoMode: true,
+            paymentIntentId: demo.paymentIntentId,
+        };
+    }
 
     // Auth-and-capture: capture_method = 'manual' → solo autoriza, no cobra
     const intent = await stripe.paymentIntents.create({
@@ -87,7 +132,57 @@ export async function createPaymentIntent(params: {
 
     logger.info({ requestId, paymentIntentId: intent.id, amountCents }, 'PaymentIntent created (auth-only)');
 
-    return { clientSecret: intent.client_secret!, paymentId: payment.id, amountCents };
+    return { clientSecret: intent.client_secret!, paymentId: payment.id, amountCents, demoMode: false, paymentIntentId: intent.id };
+}
+
+export async function confirmPaymentIntent(params: {
+    requestId: number;
+    clientId: number;
+    paymentIntentId: string;
+}): Promise<{ status: string }> {
+    const { requestId, clientId, paymentIntentId } = params;
+
+    const { rows: [payment] } = await db.query(
+        `SELECT id, status, stripe_payment_intent_id FROM payments
+         WHERE request_id = $1 AND client_id = $2
+         ORDER BY created_at DESC LIMIT 1`,
+        [requestId, clientId],
+    );
+
+    if (!payment) throw new ServiceError(404, 'NOT_FOUND', 'Pago no encontrado para este pedido');
+    if (payment.stripe_payment_intent_id !== paymentIntentId) {
+        throw new ServiceError(400, 'BAD_REQUEST', 'PaymentIntent no coincide con el pedido');
+    }
+
+    if (config.payments.demoMode || isDemoPaymentIntentId(paymentIntentId)) {
+        await db.query(
+            `UPDATE payments SET status = 'AUTHORIZED', updated_at = NOW() WHERE id = $1`,
+            [payment.id],
+        );
+        logger.info({ requestId, paymentIntentId }, 'Demo payment confirmed as AUTHORIZED');
+        return { status: 'AUTHORIZED' };
+    }
+
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    if (intent.status === 'requires_capture') {
+        await db.query(
+            `UPDATE payments SET status = 'AUTHORIZED', updated_at = NOW() WHERE id = $1`,
+            [payment.id],
+        );
+        logger.info({ requestId, paymentIntentId }, 'Payment confirmed as AUTHORIZED');
+        return { status: 'AUTHORIZED' };
+    }
+
+    if (intent.status === 'succeeded') {
+        await db.query(
+            `UPDATE payments SET status = 'CAPTURED', captured_at = NOW(), updated_at = NOW() WHERE id = $1`,
+            [payment.id],
+        );
+        return { status: 'CAPTURED' };
+    }
+
+    return { status: intent.status };
 }
 
 // ── b) capturePayment ────────────────────────────────────────────────────────
@@ -110,7 +205,9 @@ export async function capturePayment(params: {
         return;
     }
 
-    await stripe.paymentIntents.capture(payment.stripe_payment_intent_id);
+    if (!config.payments.demoMode && !isDemoPaymentIntentId(payment.stripe_payment_intent_id)) {
+        await stripe.paymentIntents.capture(payment.stripe_payment_intent_id);
+    }
 
     await db.query(
         `UPDATE payments SET status = 'CAPTURED', captured_at = NOW(), updated_at = NOW()
@@ -148,11 +245,13 @@ export async function refundPayment(params: {
         return;
     }
 
-    const refund = await stripe.refunds.create({
-        payment_intent: payment.stripe_payment_intent_id,
-        reason: 'requested_by_customer',
-        metadata: { requestId: String(requestId), reason },
-    });
+    const refund = (config.payments.demoMode || isDemoPaymentIntentId(payment.stripe_payment_intent_id))
+        ? { id: `demo_refund_${randomUUID().replace(/-/g, '')}` }
+        : await stripe.refunds.create({
+            payment_intent: payment.stripe_payment_intent_id,
+            reason: 'requested_by_customer',
+            metadata: { requestId: String(requestId), reason },
+        });
 
     const pgClient = await db.getClient();
     try {
@@ -223,7 +322,9 @@ export async function cancelPendingPayment(params: {
         await refundPayment({ requestId, actorId, reason: 'cancelled_before_assignment' });
     } else {
         // Todavía PENDING → cancelar el intent directamente
-        await stripe.paymentIntents.cancel(payment.stripe_payment_intent_id);
+        if (!config.payments.demoMode && !isDemoPaymentIntentId(payment.stripe_payment_intent_id)) {
+            await stripe.paymentIntents.cancel(payment.stripe_payment_intent_id);
+        }
         await db.query(
             `UPDATE payments SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`,
             [payment.id],

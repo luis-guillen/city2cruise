@@ -20,9 +20,9 @@ import { RLRankingTable } from "@/components/twin/RLRankingTable";
 const REFRESH_MS = 5000;
 const DEFAULT_CENTER: [number, number] = [28.1235, -15.4363]; // Las Palmas
 const AI_THINKING_STEPS = [
-  "Loading the live twin state",
-  "Scoring available drivers",
-  "Ranking the best dispatch option",
+  "Cargando el estado en vivo del gemelo digital",
+  "Evaluando a los conductores disponibles",
+  "Ordenando la mejor opcion de despacho",
 ];
 
 const lockerColor = (status: string) => {
@@ -115,8 +115,6 @@ export default function ControlTowerPage() {
         <div>
           <h1 style={{ margin: 0 }}>Torre de Control</h1>
           <small style={{ color: "#666" }}>
-            env: <strong>{snapshot?.env ?? "—"}</strong>
-            {" · "}
             actualizado: {lastUpdated ? lastUpdated.toLocaleTimeString() : "—"}
             {" · "}
             refresco cada {REFRESH_MS / 1000}s
@@ -137,7 +135,7 @@ export default function ControlTowerPage() {
           alignItems: 'stretch',
           marginBottom: '1rem',
         }}
-        aria-label="AI status banner"
+        aria-label="Estado del motor de IA"
       >
         <div
           style={{
@@ -162,13 +160,13 @@ export default function ControlTowerPage() {
           <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: '0.82rem', letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.88 }}>
-                AI Decision Engine
+                Motor de decision con IA
               </div>
               <h2 style={{ margin: '0.2rem 0 0.35rem', fontSize: '1.45rem' }}>
-                {aiActive ? 'Thinking about the active request' : 'Monitoring live state and waiting for the next request'}
+                {aiActive ? 'Analizando la solicitud activa' : 'Supervisando el estado en vivo y esperando la siguiente solicitud'}
               </h2>
               <p style={{ margin: 0, maxWidth: 620, lineHeight: 1.45, color: 'rgba(255,255,255,0.86)' }}>
-                La torre muestra el twin en tiempo real, el ranking RL y la intervención manual. Cuando seleccionas una request, la IA entra en modo de evaluación y presenta su ranking como si estuviera razonando la siguiente mejor acción.
+                La torre muestra el gemelo digital en tiempo real, el ranking RL y la intervención manual. Cuando seleccionas una solicitud, la IA entra en modo de evaluación y presenta su ranking como si estuviera razonando la siguiente mejor acción.
               </p>
               {aiActive ? (
                 <div
@@ -208,12 +206,12 @@ export default function ControlTowerPage() {
                 textAlign: 'center',
               }}
             >
-              <div style={{ fontSize: '0.8rem', opacity: 0.84 }}>Status</div>
+              <div style={{ fontSize: '0.8rem', opacity: 0.84 }}>Estado</div>
               <div style={{ fontWeight: 800, fontSize: '1rem', marginTop: 3 }}>
-                {aiActive ? 'THINKING' : 'READY'}
+                {aiActive ? 'ANALIZANDO' : 'LISTA'}
               </div>
               <div style={{ fontSize: '0.82rem', marginTop: 6, opacity: 0.8 }}>
-                {aiActive ? 'Live ranking in progress' : 'Waiting for a request'}
+                {aiActive ? 'Ranking en vivo en curso' : 'Esperando una solicitud'}
               </div>
             </div>
           </div>
@@ -228,9 +226,9 @@ export default function ControlTowerPage() {
             boxShadow: '0 12px 24px rgba(15, 23, 42, 0.06)',
           }}
         >
-          <div style={{ color: '#6b7280', fontSize: '0.85rem', marginBottom: 8 }}>What the AI is doing</div>
+          <div style={{ color: '#6b7280', fontSize: '0.85rem', marginBottom: 8 }}>Que esta haciendo la IA</div>
           <ul style={{ margin: 0, paddingLeft: 18, color: '#111827', lineHeight: 1.55 }}>
-            <li>Ordena conductores por idoneidad para la request activa.</li>
+            <li>Ordena conductores por idoneidad para la solicitud activa.</li>
             <li>Expone el ranking en vivo y la latencia de inferencia.</li>
             <li>Permite ver cuándo el sistema necesita intervención humana.</li>
           </ul>
@@ -250,11 +248,11 @@ export default function ControlTowerPage() {
         <Kpi label="Lockers libres" value={agg?.lockers_free} total={agg?.lockers_total} accent="#22c55e" />
         <Kpi label="Lockers ocupados" value={agg?.lockers_occupied} total={agg?.lockers_total} accent="#ef4444" />
         <Kpi label="Lockers fuera de servicio" value={agg?.lockers_out} total={agg?.lockers_total} accent="#6b7280" />
-        <Kpi label="Drivers online" value={agg?.drivers_online} total={agg?.drivers_total} accent="#3b82f6" />
-        <Kpi label="Drivers disponibles" value={agg?.drivers_available} total={agg?.drivers_total} accent="#3b82f6" />
-        <Kpi label="Requests activas" value={agg?.requests_active} accent="#f97316" />
+        <Kpi label="Conductores conectados" value={agg?.drivers_online} total={agg?.drivers_total} accent="#3b82f6" />
+        <Kpi label="Conductores disponibles" value={agg?.drivers_available} total={agg?.drivers_total} accent="#3b82f6" />
+        <Kpi label="Solicitudes activas" value={agg?.requests_active} accent="#f97316" />
         <Kpi
-          label="Tiempo de match (15m)"
+          label="Tiempo medio de asignacion (15m)"
           value={agg?.avg_match_seconds_15m ? `${agg.avg_match_seconds_15m}s` : "—"}
           accent="#a855f7"
         />
@@ -270,9 +268,9 @@ export default function ControlTowerPage() {
         }}
       >
         <div style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "1rem" }}>
-          <h2 style={{ marginTop: 0 }}>Requests activas</h2>
+          <h2 style={{ marginTop: 0 }}>Solicitudes activas</h2>
           {activeRequests.length === 0 ? (
-            <p style={{ marginBottom: 0, color: "#6b7280" }}>No hay requests activas en el twin.</p>
+            <p style={{ marginBottom: 0, color: "#6b7280" }}>No hay solicitudes activas en el gemelo digital.</p>
           ) : (
             <div style={{ display: "grid", gap: "0.5rem" }}>
               {activeRequests.map((request) => {
@@ -294,7 +292,7 @@ export default function ControlTowerPage() {
                     <strong>#{request.id}</strong>
                     <div style={{ color: "#4b5563", marginTop: 4 }}>fase: {request.phase}</div>
                     <div style={{ color: "#6b7280", fontSize: "0.9rem", marginTop: 4 }}>
-                      driver: {request.driver_id ?? "—"} · locker: {request.locker_id ?? "—"}
+                      conductor: {request.driver_id ?? "—"} · locker: {request.locker_id ?? "—"}
                     </div>
                   </button>
                 );
@@ -311,7 +309,7 @@ export default function ControlTowerPage() {
           />
         ) : (
           <div style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "1rem", color: "#6b7280" }}>
-            Selecciona una request activa para intervenir.
+            Selecciona una solicitud activa para intervenir.
           </div>
         )}
 
@@ -357,7 +355,7 @@ export default function ControlTowerPage() {
                 <div>
                   <strong>{d.name}</strong>
                   <br />estado: {d.status}
-                  {d.current_request_id ? <><br />request: #{d.current_request_id}</> : null}
+                  {d.current_request_id ? <><br />solicitud: #{d.current_request_id}</> : null}
                 </div>
               </Tooltip>
             </CircleMarker>

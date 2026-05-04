@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { subscribeRLRankings, type RLRankingUpdate } from '@/services/twin';
 
 const THINKING_STEPS = [
-  'Scoring drivers against the active request',
-  'Comparing ETA, urgency and current position',
-  'Ranking the best candidates for dispatch',
+  'Evaluando a los conductores frente a la solicitud activa',
+  'Comparando ETA, urgencia y posicion actual',
+  'Ordenando los mejores candidatos para el despacho',
 ];
 
 export function RLRankingTable({ requestId }: { requestId: number | null }) {
@@ -50,9 +50,9 @@ export function RLRankingTable({ requestId }: { requestId: number | null }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
         <div>
-          <h2 style={{ marginTop: 0, marginBottom: '0.15rem' }}>AI Ranking</h2>
+          <h2 style={{ marginTop: 0, marginBottom: '0.15rem' }}>Ranking de IA</h2>
           <p style={{ margin: 0, color: '#6b7280', fontSize: '0.92rem' }}>
-            Selección asistida por IA para la request activa.
+            Seleccion asistida por IA para la solicitud activa.
           </p>
         </div>
         <div
@@ -81,7 +81,7 @@ export function RLRankingTable({ requestId }: { requestId: number | null }) {
               animation: thinking ? 'pulse 1.1s ease-in-out infinite' : 'none',
             }}
           />
-          {thinking ? 'THINKING…' : 'AI READY'}
+          {thinking ? 'ANALIZANDO…' : 'IA LISTA'}
         </div>
       </div>
 
@@ -91,7 +91,7 @@ export function RLRankingTable({ requestId }: { requestId: number | null }) {
         </div>
       ) : null}
 
-      {!requestId ? <p style={{ color: '#6b7280', marginBottom: 0 }}>Selecciona una request para ver rankings.</p> : null}
+      {!requestId ? <p style={{ color: '#6b7280', marginBottom: 0 }}>Selecciona una solicitud para ver el ranking.</p> : null}
       {requestId && thinking ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#6b7280' }}>
           <span
@@ -118,9 +118,9 @@ export function RLRankingTable({ requestId }: { requestId: number | null }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th align="left" style={{ padding: '0.35rem 0' }}>Rank</th>
-              <th align="left" style={{ padding: '0.35rem 0' }}>Driver</th>
-              <th align="left" style={{ padding: '0.35rem 0' }}>Score</th>
+              <th align="left" style={{ padding: '0.35rem 0' }}>Puesto</th>
+              <th align="left" style={{ padding: '0.35rem 0' }}>Conductor</th>
+              <th align="left" style={{ padding: '0.35rem 0' }}>Puntuacion</th>
             </tr>
           </thead>
           <tbody>
