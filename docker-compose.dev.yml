@@ -171,6 +171,8 @@ services:
       - "8091:8090"
     environment:
       TWIN_ENV: simulation
+    volumes:
+      - ./digital_twin:/app/digital_twin
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8090/health"]
