@@ -16,7 +16,7 @@ import { getApiErrorMessage } from '@/utils/errors';
 import { createAndSignCustodyChallenge, signExistingCustodyChallenge } from '@/services/custodyClient';
 import {
   Navigation, MapPin, Package, Box, Archive, LogOut,
-  RefreshCw, CheckCircle2, Truck, AlertTriangle, Settings
+  RefreshCw, CheckCircle2, Truck, AlertTriangle, Settings, Sparkles, Route, Orbit
 } from 'lucide-react';
 import { useEffect } from 'react';
 
@@ -166,6 +166,44 @@ export default function DriverDashboard() {
       />
 
       <div className="ios-page-notab max-w-lg mx-auto px-4">
+        {(pendingRequests.length > 0 || activePickup) && (
+          <GlassCard
+            variant="ultra"
+            className="mb-4 animate-slide-up border border-[var(--ios-purple)]/12"
+            style={{
+              background: 'linear-gradient(135deg, rgba(175,82,222,0.12), rgba(94,92,230,0.08))',
+              boxShadow: '0 14px 30px rgba(94,92,230,0.10)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--ios-purple)] bg-[var(--ios-purple)]/10 border border-[var(--ios-purple)]/15 mb-3">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Motor de IA activo
+                </div>
+                <h2 className="text-[18px] font-semibold text-[var(--ios-text-primary)] leading-tight">
+                  {activePickup ? 'Pensando con la IA y calculando la ruta óptima' : 'La IA está evaluando la mejor solicitud para ti'}
+                </h2>
+                <p className="text-[13px] text-[var(--ios-text-secondary)] mt-2 leading-relaxed">
+                  {activePickup
+                    ? 'El ranking predictivo y el gemelo digital ajustan la llegada, la prioridad y el trayecto recomendado en tiempo real.'
+                    : 'Analiza distancia, ETA y disponibilidad para priorizar la recogida con mejor encaje operativo.'}
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold text-[var(--ios-purple)] bg-white/65 border border-white/60">
+                  <Route className="w-3.5 h-3.5" />
+                  Ruta óptima
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold text-[var(--ios-blue)] bg-white/65 border border-white/60">
+                  <Orbit className="w-3.5 h-3.5" />
+                  Digital Twin
+                </span>
+              </div>
+            </div>
+          </GlassCard>
+        )}
+
         {/* GPS Status */}
         <GlassCard variant="default" className="mb-4 animate-slide-up" padding="sm">
           <div className="flex items-center justify-between">
@@ -284,6 +322,10 @@ export default function DriverDashboard() {
                   {/* Handshake Code Display */}
                   {pickup.status === 'CONFIRMATION_PENDING' && /^\d{4}$/.test(pickup.handshakeCode ?? '') && (
                     <div className="glass rounded-[14px] p-4 text-center mb-3">
+                      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--ios-green)] bg-[var(--ios-green)]/10 border border-[var(--ios-green)]/15 mb-3">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Custodia validada
+                      </div>
                       <p className="ios-caption mb-2">Código para el cliente</p>
                       <div className="flex justify-center gap-2">
                         {pickup.handshakeCode.split('').map((digit, di) => (
@@ -295,6 +337,9 @@ export default function DriverDashboard() {
                       <p className="ios-caption mt-3 flex items-center justify-center gap-1">
                         <span className="ios-dot bg-[var(--ios-orange)] ios-dot-pulse" />
                         Esperando confirmación del cliente...
+                      </p>
+                      <p className="text-[12px] text-[var(--ios-text-secondary)] mt-2">
+                        El código temporal y la identidad del encuentro quedan registrados en el ledger de custodia.
                       </p>
                       <button
                         onClick={() => onRenew(pickup.id)}

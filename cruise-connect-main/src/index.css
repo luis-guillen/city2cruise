@@ -604,6 +604,29 @@
   }
 }
 
+@keyframes ai-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ai-dot-wave {
+  0%, 100% { transform: translateY(0); opacity: 0.35; }
+  50% { transform: translateY(-4px); opacity: 1; }
+}
+
+@keyframes ai-step-glow {
+  0%, 100% {
+    transform: translateX(0);
+    opacity: 0.45;
+    box-shadow: none;
+  }
+  50% {
+    transform: translateX(4px);
+    opacity: 1;
+    box-shadow: 0 0 0 6px rgba(175, 82, 222, 0.08);
+  }
+}
+
 /* ── Utility Classes ── */
 @layer utilities {
   .animate-slide-up {
@@ -650,6 +673,18 @@
 
   .animate-progress-indefinite {
     animation: progress-indefinite 2s linear infinite;
+  }
+
+  .animate-ai-orbit {
+    animation: ai-orbit 5s linear infinite;
+  }
+
+  .animate-ai-dot-wave {
+    animation: ai-dot-wave 1s ease-in-out infinite;
+  }
+
+  .animate-ai-step-glow {
+    animation: ai-step-glow 1.8s ease-in-out infinite;
   }
 
   @keyframes ping-slow {

@@ -195,14 +195,24 @@ export default function ClientTrackingMap({
     <div className="rounded-[20px] overflow-hidden shadow-lg shadow-black/10 animate-scale-in bg-white/50 backdrop-blur-md border border-white/20">
       {/* Header */}
       <div className="glass-ultra px-4 py-3 flex items-center justify-between border-b border-black/5">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[var(--ios-green)] animate-pulse" />
-          <span className="text-[13px] font-semibold">
-            {driverName || 'Conductor'}{' '}
-            {request?.status === 'CONFIRMATION_PENDING'
-              ? 'viniendo a por tu paquete'
-              : 'llevando tu paquete al puerto'}
-          </span>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[var(--ios-green)] animate-pulse" />
+            <span className="text-[13px] font-semibold">
+              {driverName || 'Conductor'}{' '}
+              {request?.status === 'CONFIRMATION_PENDING'
+                ? 'viniendo a por tu paquete'
+                : 'llevando tu paquete al puerto'}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ios-purple)] bg-[var(--ios-purple)]/10 border border-[var(--ios-purple)]/14">
+              ✨ Ruta optimizada con IA
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ios-blue)] bg-[var(--ios-blue)]/10 border border-[var(--ios-blue)]/14">
+              Gemelo digital en vivo
+            </span>
+          </div>
         </div>
         <span className="text-[13px] font-medium text-[var(--ios-blue)]">
           {distance < 0.1 ? '¡Llegando!' : `${distance.toFixed(1)} km`}

@@ -40,15 +40,52 @@ class TwinStore:
 
     def _seed_default(self) -> None:
         """Seed estático: 35 lockers en Las Palmas + 3 drivers."""
-        base_lat = 28.1235
-        base_lon = -15.4363
-        for lid in range(1, 36):
-            row = (lid - 1) // 7
-            col = (lid - 1) % 7
-            lat = base_lat + (row * 0.0021)
-            lon = base_lon + (col * 0.0018)
+        locker_seeds = [
+            # Santa Catalina / Puerto, siempre en suelo urbano
+            (1, "L-LP-01", 28.1424, -15.4318),
+            (2, "L-LP-02", 28.1415, -15.4307),
+            (3, "L-LP-03", 28.1405, -15.4298),
+            (4, "L-LP-04", 28.1394, -15.4289),
+            (5, "L-LP-05", 28.1382, -15.4282),
+            (6, "L-LP-06", 28.1371, -15.4274),
+            (7, "L-LP-07", 28.1360, -15.4266),
+            # Mesa y Lopez / Guanarteme
+            (8, "L-LP-08", 28.1358, -15.4388),
+            (9, "L-LP-09", 28.1350, -15.4374),
+            (10, "L-LP-10", 28.1342, -15.4360),
+            (11, "L-LP-11", 28.1334, -15.4347),
+            (12, "L-LP-12", 28.1326, -15.4333),
+            (13, "L-LP-13", 28.1318, -15.4320),
+            (14, "L-LP-14", 28.1310, -15.4306),
+            # Alcaravaneras / Estadio Insular
+            (15, "L-LP-15", 28.1296, -15.4349),
+            (16, "L-LP-16", 28.1288, -15.4335),
+            (17, "L-LP-17", 28.1280, -15.4322),
+            (18, "L-LP-18", 28.1272, -15.4309),
+            (19, "L-LP-19", 28.1264, -15.4295),
+            (20, "L-LP-20", 28.1256, -15.4282),
+            (21, "L-LP-21", 28.1248, -15.4269),
+            # Ciudad Jardin / Arenales
+            (22, "L-LP-22", 28.1238, -15.4262),
+            (23, "L-LP-23", 28.1228, -15.4249),
+            (24, "L-LP-24", 28.1218, -15.4235),
+            (25, "L-LP-25", 28.1208, -15.4221),
+            (26, "L-LP-26", 28.1198, -15.4207),
+            (27, "L-LP-27", 28.1188, -15.4194),
+            # Triana alta / Lugo
+            (28, "L-LP-28", 28.1178, -15.4180),
+            (29, "L-LP-29", 28.1168, -15.4166),
+            (30, "L-LP-30", 28.1158, -15.4152),
+            (31, "L-LP-31", 28.1148, -15.4139),
+            (32, "L-LP-32", 28.1138, -15.4125),
+            # Triana / Vegueta
+            (33, "L-LP-33", 28.1128, -15.4111),
+            (34, "L-LP-34", 28.1118, -15.4097),
+            (35, "L-LP-35", 28.1108, -15.4084),
+        ]
+        for lid, label, lat, lon in locker_seeds:
             self.lockers[lid] = LockerState(
-                id=lid, label=f"L-LP-{lid:02d}", latitude=lat, longitude=lon,
+                id=lid, label=label, latitude=lat, longitude=lon,
                 status=LockerStatus.free, occupancy_pct=0,
                 last_change_at=_now(),
             )
