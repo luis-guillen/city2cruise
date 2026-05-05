@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import {
   Package, MapPin, ShieldCheck, Lock, PackageCheck,
   Search, Archive, Box, LogOut, Clock, ChevronRight,
-  AlertTriangle
+  AlertTriangle, Sparkles, Orbit, KeyRound, ShieldEllipsis
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getApiErrorMessage } from '@/utils/errors';
@@ -446,21 +446,36 @@ export default function ClientDashboard() {
                 </GlassCard>
 
                 {currentRequest.custodySummary && (
-                  <GlassCard variant="default" delay={1}>
+                  <GlassCard
+                    variant="default"
+                    delay={1}
+                    className="border border-[var(--ios-green)]/12"
+                    style={{
+                      background: 'linear-gradient(180deg, rgba(52,199,89,0.07), rgba(255,255,255,0.78))',
+                      boxShadow: '0 10px 28px rgba(52,199,89,0.08)',
+                    }}
+                  >
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-[var(--ios-blue)]/10 flex items-center justify-center">
-                        <ShieldCheck className="w-5 h-5 text-[var(--ios-blue)]" />
+                      <div className="w-10 h-10 rounded-xl bg-[var(--ios-green)]/10 flex items-center justify-center">
+                        <ShieldCheck className="w-5 h-5 text-[var(--ios-green)]" />
                       </div>
                       <div>
                         <h3 className="ios-title">Recibo digital</h3>
                         <p className="ios-caption">{currentRequest.custodySummary.storageMode}</p>
                       </div>
                     </div>
+                    <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--ios-green)] bg-white/70 border border-[var(--ios-green)]/14 mb-3">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Validado por blockchain
+                    </div>
                     <p className="font-mono text-[11px] text-[var(--ios-text-tertiary)] break-all">
                       {currentRequest.custodySummary.blockHash}
                     </p>
                     <p className="ios-caption mt-2">
                       Bloque #{currentRequest.custodySummary.ledgerHeight} · Quórum {currentRequest.custodySummary.quorumProof.map((vote) => vote.validatorId).join(', ')}
+                    </p>
+                    <p className="text-[12px] text-[var(--ios-green)] font-medium mt-2">
+                      Registro sellado y validado por el quórum del ledger de custodia.
                     </p>
                   </GlassCard>
                 )}
@@ -469,8 +484,20 @@ export default function ClientDashboard() {
                 {status === 'REQUESTED' && (
                   <GlassCard variant="ultra" className="py-8" delay={1}>
                     <div className="flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--ios-purple)] bg-[var(--ios-purple)]/10 border border-[var(--ios-purple)]/15">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          IA pensando
+                        </span>
+                        <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--ios-blue)] bg-[var(--ios-blue)]/10 border border-[var(--ios-blue)]/15">
+                          <Orbit className="w-3.5 h-3.5" />
+                          Digital Twin
+                        </span>
+                      </div>
+
                       <div className="relative">
                         <div className="absolute inset-0 bg-[var(--ios-blue)] opacity-20 rounded-full animate-ping-slow" />
+                        <div className="absolute -inset-4 rounded-full border border-[var(--ios-purple)]/14 border-dashed animate-ai-orbit" />
                         <div className="relative w-16 h-16 rounded-full bg-[var(--ios-blue)]/10 flex items-center justify-center border border-[var(--ios-blue)]/20 shadow-lg shadow-blue-500/10">
                           <Search className="w-8 h-8 text-[var(--ios-blue)] animate-pulse-slow" />
                         </div>
@@ -479,7 +506,36 @@ export default function ClientDashboard() {
                       <div className="space-y-1">
                         <h2 className="ios-title text-[17px]">Estamos buscando un driver para ti...</h2>
                         <p className="ios-caption px-4">
-                          Analizando conductores disponibles en tu radio de servicio.
+                          La IA está analizando conductores disponibles, ETA prevista y la mejor ruta en tiempo real.
+                        </p>
+                      </div>
+
+                      <div className="w-full max-w-[320px] space-y-2 text-left">
+                        {[
+                          'Ponderando prioridad y disponibilidad',
+                          'Calculando ETA y ruta recomendada',
+                          'Sincronizando decision con el digital twin',
+                        ].map((step, index) => (
+                          <div
+                            key={step}
+                            className="flex items-center gap-3 rounded-[14px] border border-[var(--ios-purple)]/10 bg-white/55 px-3 py-2 animate-ai-step-glow"
+                            style={{ animationDelay: `${index * 0.2}s` }}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-[var(--ios-purple)] animate-ai-dot-wave" style={{ animationDelay: `${index * 0.12}s` }} />
+                              <span className="w-2 h-2 rounded-full bg-[var(--ios-purple)]/70 animate-ai-dot-wave" style={{ animationDelay: `${index * 0.12 + 0.12}s` }} />
+                              <span className="w-2 h-2 rounded-full bg-[var(--ios-purple)]/45 animate-ai-dot-wave" style={{ animationDelay: `${index * 0.12 + 0.24}s` }} />
+                            </div>
+                            <p className="text-[12px] font-medium text-[var(--ios-text-secondary)]">
+                              {step}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="rounded-[14px] bg-[var(--ios-purple)]/7 border border-[var(--ios-purple)]/12 px-4 py-3 max-w-[320px]">
+                        <p className="text-[12px] leading-relaxed text-[var(--ios-text-secondary)]">
+                          El gemelo digital está sincronizando tráfico, disponibilidad y prioridad de servicio para recomendar la asignación óptima.
                         </p>
                       </div>
 
@@ -505,6 +561,28 @@ export default function ClientDashboard() {
                       <div>
                         <h3 className="ios-title">Paso de seguridad</h3>
                         <p className="ios-caption">Introduce el código del conductor</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[14px] border border-[var(--ios-green)]/14 bg-[var(--ios-green)]/8 px-4 py-3 mb-4">
+                      <div className="flex items-start gap-3">
+                        <ShieldCheck className="w-4.5 h-4.5 text-[var(--ios-green)] mt-0.5 flex-shrink-0" />
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ios-green)] bg-white/70 border border-[var(--ios-green)]/14">
+                              <ShieldCheck className="w-3 h-3" />
+                              Blockchain validando
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ios-green)] bg-white/70 border border-[var(--ios-green)]/14">
+                              <KeyRound className="w-3 h-3" />
+                              Código de custodia
+                            </span>
+                          </div>
+                          <p className="text-[13px] font-semibold text-[var(--ios-green)]">Verificación del encuentro sellada en el ledger</p>
+                          <p className="text-[12px] text-[var(--ios-text-secondary)] leading-relaxed mt-1">
+                            El sistema valida que el conductor correcto ha llegado, firma el reto de custodia y deja trazabilidad verificable del encuentro.
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -568,11 +646,35 @@ export default function ClientDashboard() {
                       </div>
                     </div>
 
+                    <div className="rounded-[14px] border border-[var(--ios-green)]/14 bg-[var(--ios-green)]/8 px-4 py-3 mb-5">
+                      <div className="flex items-start gap-3">
+                        <ShieldEllipsis className="w-4.5 h-4.5 text-[var(--ios-green)] mt-0.5 flex-shrink-0" />
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ios-green)] bg-white/70 border border-[var(--ios-green)]/14">
+                              <KeyRound className="w-3 h-3" />
+                              Código cifrado
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--ios-green)] bg-white/70 border border-[var(--ios-green)]/14">
+                              <ShieldCheck className="w-3 h-3" />
+                              Blockchain validando
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-[var(--ios-text-secondary)] leading-relaxed">
+                            La apertura queda protegida con custodia digital, trazabilidad del código y registro verificable del retiro.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
                     {!showOpenConfirm ? (
                       <>
                         <div className="bg-black/[0.03] rounded-[14px] p-4 mb-6 border border-black/5">
                           <p className="text-[13px] text-[var(--ios-text-secondary)] leading-tight text-center">
                             Usa este código en el panel de la taquilla <strong>{currentRequest.locker?.label}</strong>
+                          </p>
+                          <p className="text-[12px] text-[var(--ios-green)] text-center font-medium mt-2">
+                            Cifrando el código y validando la custodia antes de la apertura.
                           </p>
                         </div>
 
