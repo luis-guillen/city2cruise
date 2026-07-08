@@ -26,6 +26,12 @@ export interface DriverRanking {
     rank: number;    // 0 = highest confidence
 }
 
+export interface RLRankingResult {
+    rankings: DriverRanking[];
+    modelVersion: string | null;
+    inferenceMs: number | null;
+}
+
 interface RLAssignResponse {
     rankings: Array<{ driverId: number; score: number; rank: number; etaMs?: number }>;
     modelVersion: string;
@@ -45,7 +51,21 @@ interface RLAssignResponse {
 export async function getRLDriverRanking(
     tensor?: StateTensor,
 ): Promise<DriverRanking[]> {
-    if (!config.rl.enabled) return [];
+    return (await getRLDriverRankingDetailed(tensor)).rankings;
+}
+
+/**
+ * Same as getRLDriverRanking() but also returns the model metadata
+ * (modelVersion, inferenceMs) so the dispatch layer can surface the RL
+ * decision to the Control Tower via the `rl:rankings` socket event.
+ *
+ * Never throws — returns empty rankings and null metadata on any fallback.
+ */
+export async function getRLDriverRankingDetailed(
+    tensor?: StateTensor,
+): Promise<RLRankingResult> {
+    const EMPTY: RLRankingResult = { rankings: [], modelVersion: null, inferenceMs: null };
+    if (!config.rl.enabled) return EMPTY;
 
     try {
         const stateTensor = tensor ?? (await buildStateTensor());
@@ -70,30 +90,34 @@ export async function getRLDriverRanking(
                 { status: response.status, url: config.rl.serviceUrl },
                 '[RL] /assign returned non-2xx — falling back to geo-distance',
             );
-            return [];
+            return EMPTY;
         }
 
         const data = (await response.json()) as RLAssignResponse;
 
-        if (!Array.isArray(data.rankings)) return [];
+        if (!Array.isArray(data.rankings)) return EMPTY;
 
         logger.debug(
             { inferenceMs: data.inferenceMs, modelVersion: data.modelVersion, drivers: data.rankings.length },
             '[RL] Got driver ranking',
         );
 
-        return data.rankings.map(r => ({
-            driverId: r.driverId,
-            score: r.score,
-            rank: r.rank,
-        }));
+        return {
+            rankings: data.rankings.map(r => ({
+                driverId: r.driverId,
+                score: r.score,
+                rank: r.rank,
+            })),
+            modelVersion: data.modelVersion ?? null,
+            inferenceMs: typeof data.inferenceMs === 'number' ? data.inferenceMs : null,
+        };
     } catch (err) {
         if ((err as Error).name === 'AbortError') {
             logger.warn({ timeoutMs: config.rl.timeoutMs }, '[RL] Service timeout — falling back to geo-distance');
         } else {
             logger.warn({ err }, '[RL] Service unreachable — falling back to geo-distance');
         }
-        return [];
+        return EMPTY;
     }
 }
 

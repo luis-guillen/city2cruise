@@ -64,23 +64,28 @@ export default defineConfig(({ mode }) => ({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
-          // 3. Imagenes locales → CacheFirst con LRU
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico)$/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "images-cache",
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          // 4. Tiles OSM → CacheFirst de larga duracion (mapa offline parcial)
+          // 3. Tiles OSM → CacheFirst de larga duracion (mapa offline parcial)
+          // IMPORTANTE: va antes que images-cache para que los .png de OSM
+          // no caigan en la regla genérica de imágenes (que cachea opaque
+          // responses cross-origin causando ERR_FAILED en posteriores cargas).
           {
             urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/,
             handler: "CacheFirst",
             options: {
               cacheName: "osm-tiles",
               expiration: { maxEntries: 500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // 4. Imagenes locales → CacheFirst con LRU (excluye OSM tiles)
+          {
+            urlPattern: ({ url }) =>
+              /\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico)$/i.test(url.pathname) &&
+              !url.hostname.endsWith('.tile.openstreetmap.org'),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "images-cache",
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

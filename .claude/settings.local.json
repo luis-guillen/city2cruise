@@ -64,7 +64,13 @@
       "Bash(pip3 install *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(rtk grep *)",
+      "Bash(rtk git *)",
+      "Bash(rtk read *)",
+      "Bash(rtk ls *)",
+      "Bash(pnpm build *)",
+      "Bash(pnpm add *)"
     ]
   }
 }

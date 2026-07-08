@@ -20,7 +20,6 @@ SERVICE_AREA_VIEWBOX = "-15.55,27.99,-15.35,28.22"
 from __future__ import annotations
 
 import math
-import random
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -65,10 +64,6 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def random_pos() -> tuple[float, float]:
-    return random.uniform(LAT_MIN, LAT_MAX), random.uniform(LON_MIN, LON_MAX)
-
-
 # ─── Episode data structures ──────────────────────────────────────────────────
 
 @dataclass
@@ -110,6 +105,12 @@ class TensorEncoder:
         time_of_day_norm: Optional[float] = None,
     ) -> np.ndarray:
         obs = np.zeros(OBS_DIM, dtype=np.float32)
+
+        # Empty/padding driver slots get the worst possible ETA (1.0) so the
+        # policy is never lured into selecting a non-existent driver — a
+        # zero-padded eta (0.0) would otherwise look like the closest driver.
+        for i in range(MAX_DRIVERS):
+            obs[i * OBS_PER_DRIVER + 3] = 1.0
 
         for i, d in enumerate(drivers[:MAX_DRIVERS]):
             base = i * OBS_PER_DRIVER
@@ -159,11 +160,13 @@ class CruiseDispatchEnv(gym.Env):
         n_drivers: int = 6,
         n_requests: int = 10,
         max_steps: int = 20,
+        domain_randomization: bool = False,
     ) -> None:
         super().__init__()
         self.n_drivers = min(n_drivers, MAX_DRIVERS)
         self.n_requests = n_requests
         self.max_steps = max_steps
+        self.domain_randomization = domain_randomization
 
         self.observation_space = spaces.Box(
             low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32
@@ -176,6 +179,14 @@ class CruiseDispatchEnv(gym.Env):
         self._locker_occ = 0.5
         self._episode_reward = 0.0
         self._sim_minutes = 0
+        self._assigned_etas: list[float] = []
+
+        # Domain-randomization parameters — resampled each episode when enabled,
+        # held at neutral values otherwise so evaluation stays deterministic.
+        self._traffic_factor = 1.0      # urban-traffic multiplier on ETAs
+        self._service_noise_s = 0.0     # additive service-time noise (seconds)
+        self._locker_failure_p = 0.0    # extra locker occupancy from out-of-service units
+        self._iot_jitter = 0.0          # sensor/comms latency → observation jitter
 
     # ── Gym interface ──────────────────────────────────────────────────────────
 
@@ -187,7 +198,9 @@ class CruiseDispatchEnv(gym.Env):
     ) -> tuple[np.ndarray, dict]:
         super().reset(seed=seed)
 
-        n_d = self.n_drivers
+        self._sample_domain_parameters()
+
+        n_d = self._sample_driver_count()
         n_r = self.np_random.integers(1, self.n_requests + 1)
 
         self._drivers = self._gen_drivers(int(n_d))
@@ -197,11 +210,50 @@ class CruiseDispatchEnv(gym.Env):
             reverse=True,
         )
         self._step_count = 0
-        self._locker_occ = float(self.np_random.uniform(0.1, 0.9))
+        base_occ = float(self.np_random.uniform(0.1, 0.9))
+        self._locker_occ = min(1.0, base_occ + self._locker_failure_p)
         self._episode_reward = 0.0
         self._sim_minutes = int(self.np_random.integers(0, 1440))
+        self._assigned_etas = []
 
         return self._build_obs(), {}
+
+    # ── Domain randomization ────────────────────────────────────────────────────
+
+    def _sample_domain_parameters(self) -> None:
+        """
+        Resample the environment-dynamics parameters for a new episode.
+
+        With domain randomization enabled the agent is trained across a family of
+        simulators (Tobin et al., 2017) so the learned policy is robust to the
+        reality gap. Neutral values are used otherwise so held-out evaluation and
+        the baseline benchmark stay deterministic and directly comparable.
+        """
+        if not self.domain_randomization:
+            self._traffic_factor = 1.0
+            self._service_noise_s = 0.0
+            self._locker_failure_p = 0.0
+            self._iot_jitter = 0.0
+            return
+        self._traffic_factor = float(self.np_random.uniform(0.7, 1.8))
+        self._service_noise_s = float(self.np_random.uniform(0.0, 90.0))
+        self._locker_failure_p = float(self.np_random.uniform(0.0, 0.15))
+        self._iot_jitter = float(self.np_random.uniform(0.0, 0.04))
+
+    def _sample_driver_count(self) -> int:
+        if not self.domain_randomization:
+            return self.n_drivers
+        lo = max(2, self.n_drivers - 2)
+        hi = min(MAX_DRIVERS, self.n_drivers + 2)
+        return int(self.np_random.integers(lo, hi + 1))
+
+    def _eta_norm(self, driver: SimDriver, target: SimRequest) -> float:
+        """Normalised ETA of `driver` toward `target`, including the episode's
+        traffic multiplier and additive service-time noise."""
+        dist_m = haversine_m(driver.lat, driver.lon, target.lat, target.lon)
+        eta_s = dist_m / max(driver.speed_mps, 2.0)
+        eta_s = eta_s * self._traffic_factor + self._service_noise_s
+        return min(1.0, eta_s / MAX_ETA_S)
 
     def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict]:
         self._step_count += 1
@@ -216,14 +268,14 @@ class CruiseDispatchEnv(gym.Env):
         else:
             target = self._pending[0]
             driver = available[action]
-            dist_m = haversine_m(driver.lat, driver.lon, target.lat, target.lon)
-            eta_s = dist_m / max(driver.speed_mps, 2.0)
-            eta_norm = min(1.0, eta_s / MAX_ETA_S)
+            eta_norm = self._eta_norm(driver, target)
+            eta_s = eta_norm * MAX_ETA_S
 
             reward = (0.5 * target.urgency + 0.5 * (1.0 - eta_norm)) * 100.0
             if target.urgency > 0.7 and eta_norm < 0.25:
                 reward += 30.0  # urgent request handled fast
 
+            self._assigned_etas.append(eta_norm)
             driver.eta_norm = eta_norm
             driver.lat = target.lat
             driver.lon = target.lon
@@ -253,14 +305,13 @@ class CruiseDispatchEnv(gym.Env):
             tgt = self._pending[0]
             for d in self._drivers:
                 if d.is_available:
-                    dist = haversine_m(d.lat, d.lon, tgt.lat, tgt.lon)
-                    d.eta_norm = min(1.0, (dist / max(d.speed_mps, 2.0)) / MAX_ETA_S)
+                    d.eta_norm = self._eta_norm(d, tgt)
 
         max_urg = max((r.urgency for r in self._pending), default=0.0)
         active_norm = min(1.0, len(self._pending) / MAX_ACTIVE_REQUESTS)
         clusters = self._pseudo_clusters()
 
-        return TensorEncoder.encode(
+        obs = TensorEncoder.encode(
             self._drivers,
             clusters,
             self._locker_occ,
@@ -268,6 +319,13 @@ class CruiseDispatchEnv(gym.Env):
             active_norm,
             time_of_day_norm=self._sim_minutes / 1440.0,
         )
+
+        # IoT/comms latency modelled as bounded sensor jitter on the observation.
+        if self._iot_jitter > 0.0:
+            noise = self.np_random.normal(0.0, self._iot_jitter, size=obs.shape)
+            obs = np.clip(obs + noise.astype(np.float32), 0.0, 1.0).astype(np.float32)
+
+        return obs
 
     def _pseudo_clusters(self) -> list[tuple[float, float, float]]:
         """Grid-based demand approximation for training (avoids PostGIS dependency)."""

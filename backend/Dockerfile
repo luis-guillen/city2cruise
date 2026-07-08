@@ -3,18 +3,20 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY --chown=node:node package*.json ./
-RUN npm ci
+RUN npm install -g pnpm
+COPY --chown=node:node package.json pnpm-lock.yaml .npmrc* ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY --chown=node:node . .
-RUN npm run build
+RUN pnpm run build
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 # Hito H-1.3 (S-03): runtime no-root + HEALTHCHECK.
 FROM node:20-alpine AS runtime
 WORKDIR /app
+RUN npm install -g pnpm
 # Dependencias prod, propietario `node` (UID 1000 en la imagen oficial).
-COPY --chown=node:node package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+COPY --chown=node:node package.json pnpm-lock.yaml .npmrc* ./
+RUN pnpm install --prod --frozen-lockfile && pnpm store prune
 COPY --from=builder --chown=node:node /app/dist ./dist
 
 # Cambia a usuario sin privilegios antes del CMD (sin esto, el proceso corre

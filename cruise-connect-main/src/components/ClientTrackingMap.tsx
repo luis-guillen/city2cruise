@@ -8,13 +8,27 @@ import MapTextAlternative from './MapTextAlternative';
 
 const LOCKER_DESTINATION = { lat: 28.1505, lon: -15.4145 };
 
+function MapMounter() {
+  const map = useMap();
+  useEffect(() => {
+    // Force Leaflet to recalculate container size after the DOM is painted.
+    // Without this, tiles don't load when the map is inside a hidden/animated container.
+    const id = setTimeout(() => {
+      map.invalidateSize();
+    }, 50);
+    return () => clearTimeout(id);
+  }, [map]);
+  return null;
+}
+
 function MapUpdater({ center }: { center: [number, number] }) {
   const map = useMap();
+  const [lat, lon] = center;
   useEffect(() => {
     map.stop();
     map.invalidateSize();
-    map.flyTo(center, map.getZoom(), { duration: 0.35 });
-  }, [center, map]);
+    map.flyTo([lat, lon], map.getZoom(), { duration: 1.2 });
+  }, [lat, lon, map]);
   return null;
 }
 
@@ -224,12 +238,13 @@ export default function ClientTrackingMap({
         center={[driverPos.lat, driverPos.lon]}
         zoom={14}
         scrollWheelZoom={false}
-        style={{ height: '260px', width: '100%' }}
+        style={{ height: '260px', width: '100%', zIndex: 1 }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <MapMounter />
         <MapUpdater center={[driverPos.lat, driverPos.lon]} />
 
         <Marker position={[driverPos.lat, driverPos.lon]} icon={driverIcon}>
