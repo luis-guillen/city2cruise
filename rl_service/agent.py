@@ -35,7 +35,11 @@ from .schemas import AssignmentResult, StateTensorInput
 
 # ─── Model persistence ────────────────────────────────────────────────────────
 
-MODEL_PATH = Path(os.getenv("RL_MODEL_PATH", "/tmp/cruise_dispatch_ppo"))
+# Trained artifacts are versioned inside the repo (rl_service/artifacts) so the
+# convergence curve, checkpoint and metadata are reproducible evidence, not
+# ephemeral /tmp state. Override with RL_MODEL_PATH if needed.
+_DEFAULT_MODEL_DIR = Path(__file__).resolve().parent / "artifacts"
+MODEL_PATH = Path(os.getenv("RL_MODEL_PATH", str(_DEFAULT_MODEL_DIR / "cruise_dispatch_ppo")))
 MODEL_META_PATH = Path(f"{MODEL_PATH}.meta.json")
 
 
@@ -61,8 +65,13 @@ class RLAgent:
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     def _make_env(self, n_envs: int = 8):
+        # Training envs use domain randomization (Tobin et al., 2017) so the
+        # learned policy is robust to the reality gap; inference reads the real
+        # StateTensor and does not depend on the attached env.
         return self._make_vec_env(
-            lambda: CruiseDispatchEnv(n_drivers=8, n_requests=12, max_steps=20),
+            lambda: CruiseDispatchEnv(
+                n_drivers=8, n_requests=12, max_steps=20, domain_randomization=True
+            ),
             n_envs=n_envs,
         )
 

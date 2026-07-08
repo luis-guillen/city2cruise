@@ -1,8 +1,8 @@
 import { db } from '../db/database';
 import { config } from '../config/env';
-import { getActiveDrivers, emitToSocket, emitToUser, updateActiveDriverLocation } from '../sockets/io';
+import { getActiveDrivers, emitToSocket, emitToUser, updateActiveDriverLocation, emitEvent } from '../sockets/io';
 import { logger } from '../utils/logger';
-import { getRLDriverRanking, applyRLRanking } from './RLDispatchService';
+import { getRLDriverRankingDetailed, applyRLRanking } from './RLDispatchService';
 import { clearPendingOffers, registerPendingOffers } from './ReassignmentService';
 
 interface CascadeEntry {
@@ -64,9 +64,22 @@ async function notifyDriversInRadius(
     });
 
     // Apply RL ranking (no-op when RL is disabled or service is down)
-    const rlRankings = await getRLDriverRanking();
+    const rl = await getRLDriverRankingDetailed();
+    const rlRankings = rl.rankings;
     const rankedIds = applyRLRanking(eligible.map(d => d.userId), rlRankings);
     const driverById = new Map(eligible.map(d => [d.userId, d]));
+
+    // Surface the RL decision to the Control Tower ("Ranking de IA" panel).
+    // Advisory data consumed by the admin-only ControlTowerPage; passengers/drivers
+    // ignore the event. Only emitted when the RL agent actually produced a ranking.
+    if (rlRankings.length > 0) {
+        emitEvent('rl:rankings', {
+            requestId,
+            rankings: rlRankings.map(r => ({ driverId: r.driverId, score: r.score, rank: r.rank })),
+            modelVersion: rl.modelVersion ?? undefined,
+            inferenceMs: rl.inferenceMs ?? undefined,
+        });
+    }
 
     for (const userId of rankedIds) {
         const driver = driverById.get(userId);

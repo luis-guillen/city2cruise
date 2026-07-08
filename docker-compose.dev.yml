@@ -123,6 +123,7 @@ services:
       VALIDATOR_LEDGER_B_URL: http://ledger-b:4001
       VALIDATOR_LEDGER_C_URL: http://ledger-c:4001
       RL_SERVICE_URL: http://rl_service:8080
+      RL_ROUTING_ENABLED: ${RL_ROUTING_ENABLED:-true}
       TWIN_URL: http://digital_twin:8090
       TWIN_PROVIDER: ${TWIN_PROVIDER:-internal}
       MIROFISH_BASE_URL: ${MIROFISH_BASE_URL:-}

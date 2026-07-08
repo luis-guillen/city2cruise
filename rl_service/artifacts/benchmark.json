@@ -1,0 +1,27 @@
+{
+  "greedy": {
+    "mean_reward": 295.4897289925575,
+    "p95_reward": 570.2148060418232,
+    "mean_assign_seconds": 503.5810977541525,
+    "mean_queue_left": 0.0,
+    "mean_urgency_loss": 0.0
+  },
+  "random": {
+    "mean_reward": 151.33507606473688,
+    "p95_reward": 321.84545285172555,
+    "mean_assign_seconds": 829.7540189003054,
+    "mean_queue_left": 0.0,
+    "mean_urgency_loss": 0.0
+  },
+  "rl_ppo": {
+    "mean_reward": 182.68274856447226,
+    "p95_reward": 387.27180319267546,
+    "mean_assign_seconds": 793.9444076812895,
+    "mean_queue_left": 0.0,
+    "mean_urgency_loss": 0.0
+  },
+  "improvement": {
+    "reward_vs_greedy_pct": -0.38176278008947817,
+    "assign_time_vs_greedy_pct": -0.5765969199838631
+  }
+}

@@ -3,10 +3,21 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm install -g pnpm
+# Declare build arguments
+ARG VITE_API_URL
+ARG VITE_SOCKET_URL
+ARG VITE_TWIN_URL
+
+# Set them as environment variables for Vite's build process
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
+ENV VITE_TWIN_URL=$VITE_TWIN_URL
+
+COPY package.json pnpm-lock.yaml .npmrc* ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
-RUN npm run build
+RUN rm -f .env .env.local && pnpm run build
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 # Hito H-1.3 (S-03): runtime no-root con nginxinc/nginx-unprivileged.
@@ -26,6 +37,6 @@ USER 101
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
-    CMD wget --spider -q http://localhost:8080/ || exit 1
+    CMD wget --spider -q http://127.0.0.1:8080/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

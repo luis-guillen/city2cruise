@@ -52,12 +52,19 @@ class BenchmarkResult:
     mean_queue_left: float
     mean_urgency_loss: float
     mean_inference_ms: float
+    mean_assign_eta: float = 0.0        # mean normalised ETA of chosen assignments
     all_rewards: list[float] = field(default_factory=list)
+
+    @property
+    def mean_assign_seconds(self) -> float:
+        """Assignment-time proxy in seconds (eta_norm × MAX_ETA_S ceiling)."""
+        return self.mean_assign_eta * 900.0
 
     def summary(self) -> str:
         return (
             f"[{self.policy_name:12s}] "
             f"reward mean={self.mean_reward:7.2f}  p95={self.p95_reward:7.2f}  "
+            f"assign_eta_s={self.mean_assign_seconds:6.1f}  "
             f"queue_left={self.mean_queue_left:.2f}  "
             f"urgency_loss={self.mean_urgency_loss:.3f}  "
             f"step_ms={self.mean_inference_ms:.2f}"
@@ -104,11 +111,13 @@ def run_episodes(
     policy_name: str = "unknown",
 ) -> BenchmarkResult:
     """Run `n_episodes` episodes with `policy` and collect metrics."""
+    random.seed(seed)  # make the random-baseline actions reproducible across runs
     rewards: list[float] = []
     queues: list[float] = []
     urgency_losses: list[float] = []
     inference_times: list[float] = []  # total per episode, divided by steps later
     step_counts: list[int] = []
+    assign_etas: list[float] = []
 
     env = CruiseDispatchEnv(n_drivers=8, n_requests=12, max_steps=20)
 
@@ -131,6 +140,7 @@ def run_episodes(
         rewards.append(ep_reward)
         queues.append(float(info.get("remaining_requests", 0)))
         urgency_losses.append(_mean_pending_urgency(env))
+        assign_etas.extend(env._assigned_etas)
         if ep_steps > 0:
             inference_times.append(ep_inference_ns / ep_steps / 1e6)  # ms per step
         step_counts.append(ep_steps)
@@ -146,6 +156,7 @@ def run_episodes(
         mean_queue_left=statistics.mean(queues),
         mean_urgency_loss=statistics.mean(urgency_losses),
         mean_inference_ms=statistics.mean(inference_times) if inference_times else 0.0,
+        mean_assign_eta=statistics.mean(assign_etas) if assign_etas else 0.0,
         all_rewards=rewards,
     )
 

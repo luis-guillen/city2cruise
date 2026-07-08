@@ -1,15 +1,17 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package.json ./
-RUN npm install --omit=dev
+RUN npm install -g pnpm
+COPY package.json pnpm-lock.yaml .npmrc* ./
+RUN pnpm install --prod --frozen-lockfile
 
 FROM node:22-alpine AS builder
 WORKDIR /app
-COPY package.json ./
-RUN npm install
+RUN npm install -g pnpm
+COPY package.json pnpm-lock.yaml .npmrc* ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY tsconfig.json ./
 COPY src/ ./src/
-RUN npm run build
+RUN pnpm run build
 
 FROM node:22-alpine AS production
 WORKDIR /app
