@@ -16,7 +16,7 @@ __pycache__/
 .pytest_cache/
 .coverage
 .venv/
-
+.claude/
 # Playwright (Hito 6.2)
 cruise-connect-main/e2e/.results/
 cruise-connect-main/e2e/.report/
@@ -28,4 +28,19 @@ cruise-connect-main/coverage/
 backend/coverage/
 .coverage
 htmlcov/
+
+# RL training run outputs — keep only the evidence referenced by the memoria,
+# ignore regenerable logs/checkpoints (regenerate: python -m rl_service.train_tfm)
+rl_service/artifacts/*
+!rl_service/artifacts/cruise_dispatch_ppo.zip
+!rl_service/artifacts/cruise_dispatch_ppo.meta.json
+!rl_service/artifacts/rewards.csv
+!rl_service/artifacts/benchmark.json
+!rl_service/artifacts/fidelity.json
+!rl_service/artifacts/summary.json
+
+# TensorBoard logs & TS incremental build cache
+**/tb/
+*.tfevents.*
+*.tsbuildinfo
 
