@@ -5,9 +5,9 @@
   "description": "City2Cruise - Shop & Drop Port Hub (monorepo)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pablete64/APP_TRASNPORTE_LOCKERS_BARCELONA.git"
+    "url": "https://github.com/luis-guillen/city2cruise.git"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "release": "semantic-release"
   },

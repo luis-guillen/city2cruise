@@ -22,21 +22,22 @@ jobs:
       url: https://city2cruise.pages.dev
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: cruise-connect-main/package-lock.json
+          cache: 'pnpm'
+          cache-dependency-path: cruise-connect-main/pnpm-lock.yaml
       - name: Install
         working-directory: ./cruise-connect-main
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
       - name: Build prod
         working-directory: ./cruise-connect-main
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL || 'https://city2cruise.fly.dev/api' }}
           VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL || 'https://city2cruise.fly.dev' }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-        run: npm run build
+        run: pnpm build
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
