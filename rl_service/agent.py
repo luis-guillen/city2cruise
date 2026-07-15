@@ -42,11 +42,48 @@ _DEFAULT_MODEL_DIR = Path(__file__).resolve().parent / "artifacts"
 MODEL_PATH = Path(os.getenv("RL_MODEL_PATH", str(_DEFAULT_MODEL_DIR / "cruise_dispatch_ppo")))
 MODEL_META_PATH = Path(f"{MODEL_PATH}.meta.json")
 
+# Canonical PPO hyperparameters — recorded in the model metadata for lineage.
+# v3 (anticipatory env): higher gamma (credit lands 5–15 decisions later),
+# more exploration entropy (escape the myopic-greedy attractor), faster lr.
+HYPERPARAMS = {
+    "policy": "MlpPolicy",
+    "learning_rate": 3e-4,
+    "n_steps": 1024,
+    "batch_size": 256,
+    "n_epochs": 10,
+    "gamma": 0.995,
+    "gae_lambda": 0.95,
+    "clip_range": 0.2,
+    "ent_coef": 0.01,
+    "net_arch": [256, 256],
+}
+
+
+def write_model_meta(total_timesteps, last_trained_at=None, extra=None) -> dict:
+    """Persist the model lineage next to the checkpoint so it survives restarts.
+
+    Shared by RLAgent.train() (online) and the canonical train_tfm.py run, so
+    /metrics and the model registry always see the same metadata schema.
+    """
+    from datetime import datetime, timezone
+    meta = {
+        "modelVersion": RLAgent.MODEL_VERSION,
+        "totalTimesteps": int(total_timesteps),
+        "lastTrainedAt": last_trained_at or datetime.now(timezone.utc).isoformat(),
+        "gitSha": os.getenv("GIT_SHA"),
+        "hyperparams": HYPERPARAMS,
+    }
+    if extra:
+        meta.update(extra)
+    MODEL_META_PATH.parent.mkdir(parents=True, exist_ok=True)
+    MODEL_META_PATH.write_text(json.dumps(meta, indent=2))
+    return meta
+
 
 # ─── Agent ────────────────────────────────────────────────────────────────────
 
 class RLAgent:
-    MODEL_VERSION = "ppo-v2"
+    MODEL_VERSION = "ppo-v3-anticipatory"
 
     def __init__(self) -> None:
         # Defer heavy SB3 imports to constructor so the module can be imported
@@ -61,6 +98,19 @@ class RLAgent:
         self._last_trained_at: Optional[str] = None
 
         self.model: PPO = self._load_or_create()
+        self._seed_meta_from_disk()
+
+    def _seed_meta_from_disk(self) -> None:
+        """Restore cumulative training stats from meta.json so /metrics stays
+        correct after a service restart (previously reset to 0 on every boot)."""
+        if not MODEL_META_PATH.exists():
+            return
+        try:
+            m = json.loads(MODEL_META_PATH.read_text())
+        except Exception:
+            return
+        self._total_timesteps = int(m.get("totalTimesteps", 0) or 0)
+        self._last_trained_at = m.get("lastTrainedAt")
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -70,7 +120,7 @@ class RLAgent:
         # StateTensor and does not depend on the attached env.
         return self._make_vec_env(
             lambda: CruiseDispatchEnv(
-                n_drivers=8, n_requests=12, max_steps=20, domain_randomization=True
+                n_drivers=8, domain_randomization=True, anticipatory=True
             ),
             n_envs=n_envs,
         )
@@ -81,19 +131,13 @@ class RLAgent:
             model = self._PPO.load(str(MODEL_PATH), env=self._make_env())
             print(f"[RLAgent] Loaded model from {MODEL_PATH}.zip")
         else:
+            hp = {k: v for k, v in HYPERPARAMS.items() if k not in ("policy", "net_arch")}
             model = self._PPO(
-                policy="MlpPolicy",
+                policy=HYPERPARAMS["policy"],
                 env=self._make_env(n_envs=8),
                 verbose=0,
-                learning_rate=1e-4,
-                n_steps=1024,
-                batch_size=256,
-                n_epochs=10,
-                gamma=0.99,
-                gae_lambda=0.95,
-                clip_range=0.2,
-                ent_coef=0.005,
-                policy_kwargs={"net_arch": [256, 256]},
+                policy_kwargs={"net_arch": HYPERPARAMS["net_arch"]},
+                **hp,
             )
             print("[RLAgent] Initialised untrained PPO model")
         return model
@@ -124,10 +168,10 @@ class RLAgent:
             )
             MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
             self.model.save(str(MODEL_PATH))
-            MODEL_META_PATH.write_text(json.dumps({"modelVersion": self.MODEL_VERSION}))
             elapsed = time.monotonic() - start
             self._total_timesteps += total_timesteps
             self._last_trained_at = datetime.now(timezone.utc).isoformat()
+            write_model_meta(self._total_timesteps, self._last_trained_at)
 
             print(
                 f"[RLAgent] Trained {total_timesteps:,} steps in {elapsed:.1f}s "

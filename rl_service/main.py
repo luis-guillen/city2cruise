@@ -14,7 +14,7 @@ uvicorn rl_service.main:app --host 0.0.0.0 --port 8080 --workers 1
 
 Environment variables
 ─────────────────────
-RL_MODEL_PATH   Path prefix for the .zip checkpoint (default: /tmp/cruise_dispatch_ppo)
+RL_MODEL_PATH   Path prefix for the .zip checkpoint (default: rl_service/artifacts/cruise_dispatch_ppo)
 BACKEND_URL     Backend base URL for pulling state tensors (default: http://localhost:9000)
 INTERNAL_KEY    X-Internal-Key for backend /api/internal endpoints
 """
@@ -25,10 +25,11 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from .agent import RLAgent
+from . import observability as obs
 from .twin_bridge import TwinClient, train_with_twin_scenarios
 from .schemas import (
     AssignRequest,
@@ -49,6 +50,8 @@ async def lifespan(app: FastAPI):
     global _agent
     print("[main] Loading RL agent...")
     _agent = RLAgent()
+    meta = _agent.metadata()
+    obs.set_model_info(meta["modelVersion"], meta.get("totalTimesteps"))
     print("[main] Agent ready")
     yield
     print("[main] Shutting down")
@@ -99,6 +102,13 @@ async def metrics():
     )
 
 
+@app.get("/metrics/prometheus")
+async def metrics_prometheus():
+    """Model-serving metrics in Prometheus text format (scraped by Prometheus)."""
+    data, content_type = obs.prometheus_latest()
+    return Response(content=data, media_type=content_type)
+
+
 @app.post("/assign", response_model=AssignResponse)
 async def assign(body: AssignRequest):
     """
@@ -111,7 +121,9 @@ async def assign(body: AssignRequest):
 
     rankings = agent.get_rankings(body.state)
 
-    inference_ms = (time.monotonic() - t0) * 1000
+    inference_s = time.monotonic() - t0
+    obs.record_inference(inference_s, rankings)
+    inference_ms = inference_s * 1000
     return AssignResponse(
         requestId=body.requestId,
         rankings=rankings,

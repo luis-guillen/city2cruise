@@ -7,11 +7,16 @@ tras cablear el evento `rl:rankings`).
 ## 0. Requisito previo: modelo entrenado
 
 El agente PPO ya está entrenado y versionado en `rl_service/artifacts/`
-(`cruise_dispatch_ppo.zip`). El microservicio lo carga automáticamente al
-arrancar (`RL_MODEL_PATH` por defecto apunta a esa carpeta). Para reentrenar:
+(`cruise_dispatch_ppo.zip`, modelo `ppo-v3-anticipatory`: +16,7 % sobre el
+greedy en el entorno anticipatorio). El microservicio lo carga automáticamente
+al arrancar (`RL_MODEL_PATH` por defecto apunta a esa carpeta). Para
+reproducir el entrenamiento canónico (BC warm-start + fine-tuning PPO):
 
 ```bash
-cd rl_service && ./.venv/bin/python -m rl_service.train_tfm --timesteps 100000
+./rl_service/.venv/bin/python scripts/bc_warmstart.py
+./rl_service/.venv/bin/python -m rl_service.train_tfm \
+  --init-from rl_service/artifacts/bc_init \
+  --timesteps 600000 --learning-rate 1e-4 --ent-coef 0.003
 ```
 
 ## 1. Levantar el stack (con RL activado)
@@ -27,7 +32,7 @@ Comprueba que el microservicio RL responde y sirve el modelo entrenado:
 
 ```bash
 curl -s http://localhost:8080/health          # {"status":"ok"...}
-curl -s http://localhost:8080/metrics          # modelVersion=ppo-v2, modelExists=true
+curl -s http://localhost:8080/metrics          # modelVersion=ppo-v3-anticipatory, modelExists=true
 ```
 
 ## 2. Captura del panel "Ranking de IA" (Torre de Control)
@@ -40,7 +45,7 @@ curl -s http://localhost:8080/metrics          # modelVersion=ppo-v2, modelExist
    PPO y **emite `rl:rankings`** con `{requestId, rankings, modelVersion, inferenceMs}`.
 4. En la Torre de Control, **selecciona esa solicitud**. El panel pasará de
    "ANALIZANDO…" a **"IA LISTA"** y mostrará la tabla de conductores ordenados por
-   puntuación del PPO, con la cabecera `ppo-v2 · N ms`.
+   puntuación del PPO, con la cabecera `ppo-v3-anticipatory · N ms`.
 5. Captura el panel. → **Figuras 6 y 12** de la memoria (vista crucerista y vista
    conductor con asignación del agente PPO).
 
@@ -60,7 +65,10 @@ curl -s http://localhost:8080/metrics          # modelVersion=ppo-v2, modelExist
 
 ## 4. Figuras de resultados (ya generadas, no requieren captura)
 
-Las Figuras 9, 10 y 11 (convergencia, comparativa de políticas y reality gap) ya
-se han regenerado con datos reales del entrenamiento y están insertadas en
-`Memoria_TFM_v2.1.docx`. Sus fuentes están en `rl_service/artifacts/`
-(`rewards.csv`, `benchmark.json`, `fidelity.json`).
+Las Figuras 9, 10 y 11 (convergencia, comparativa de políticas y reality gap)
+están regeneradas con los datos reales del modelo `ppo-v3-anticipatory`
+(PPO 1819,4 > patient 1711,2 > greedy 1558,6 > cascade 1349,1 > random 1303,5;
+N = 1000 episodios pareados) e insertadas en `Memoria_TFM_v2.1.docx`. Se
+reproducen con `python scripts/plot_tfm_figures.py` a partir de
+`rl_service/artifacts/` (`rewards.csv`, `benchmark.json`, `fidelity.json`);
+los PNG viven en `docs/figures/`.

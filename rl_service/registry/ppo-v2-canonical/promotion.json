@@ -1,0 +1,17 @@
+{
+  "checks": {
+    "converged": true,
+    "fidelity_pass": true,
+    "beats_random": true,
+    "above_greedy_floor": true
+  },
+  "reward_vs_random_pct": 0.2071,
+  "reward_vs_greedy_ratio": 0.6182,
+  "surpasses_greedy": false,
+  "promote": true,
+  "policy": {
+    "min_reward_vs_random": 0.05,
+    "greedy_floor_ratio": 0.55
+  },
+  "notes": "PPO does not surpass the greedy heuristic (structural in the single-step formulation); promotion requires beating random and staying within the greedy floor. Surpassing greedy is future work (anticipatory/batch dispatch)."
+}

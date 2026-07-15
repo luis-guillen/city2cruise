@@ -95,7 +95,7 @@ jobs:
       - name: Install dependencies
         run: |
           grep -v '^torch' rl_service/requirements.txt > /tmp/rl_service.requirements.txt
-          pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.11.0"
+          pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1"
           pip install -r /tmp/rl_service.requirements.txt -r digital_twin/requirements.txt pytest
       - name: Test rl_service
         run: python -m pytest rl_service/tests/ rl_service/validation/tests/ -v

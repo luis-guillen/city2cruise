@@ -62,6 +62,7 @@ def evaluate_convergence(
         "reward_std": reward_std,
         "coeff_var": coeff_var,
         "improvement_pct": improvement_pct,
+        "stability_ratio": stability_ratio,
         "is_converged": coeff_var < stability_ratio and improvement_pct >= 0.0,
     }
 

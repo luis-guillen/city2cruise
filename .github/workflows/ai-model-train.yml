@@ -1,0 +1,64 @@
+name: AI Model Training
+
+# MLOps §4.4 — train → validate (release gate) → register a candidate model.
+# Promotion to production stays a deliberate, gated action (registry promote),
+# so this workflow never auto-ships a model; it produces an auditable candidate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      timesteps:
+        description: "PPO training timesteps"
+        default: "20000"
+  schedule:
+    - cron: "0 4 * * 1"   # weekly, Monday 04:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  train-validate-register:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps (CPU torch + training extras)
+        run: |
+          grep -v '^torch' rl_service/requirements.txt > /tmp/rl.txt
+          pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1"
+          pip install -r /tmp/rl.txt tensorboard==2.21.0 mlflow==3.14.0
+
+      - name: Train (canonical pipeline)
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          python -m rl_service.train_tfm \
+            --timesteps ${{ github.event.inputs.timesteps || '20000' }} \
+            --eval-episodes 300
+
+      - name: Release gate (convergence + fidelity + robustness)
+        continue-on-error: true   # informational: records whether the trained model would pass
+        run: |
+          python scripts/validate_ai_release.py \
+            --log-dir rl_service/artifacts \
+            --twin-metrics rl_service/validation/fixtures/twin_metrics.json \
+            --prod-metrics rl_service/validation/fixtures/prod_metrics.json \
+            --report-out /tmp/ai_release_report.json
+
+      - name: Register candidate model version
+        run: |
+          python -m rl_service.registry register --version "ci-${{ github.run_number }}-${{ github.sha }}"
+          python -m rl_service.registry list
+
+      - name: Upload model artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rl-model-${{ github.run_number }}
+          path: |
+            rl_service/artifacts/
+            rl_service/registry/
+            /tmp/ai_release_report.json
+          retention-days: 30

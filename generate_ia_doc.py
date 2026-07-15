@@ -366,7 +366,7 @@ add_body(doc,
     'El modelo se guarda en formato SB3 (.zip) en RL_MODEL_PATH '
     '(default: /tmp/cruise_dispatch_ppo.zip). Junto al zip se escribe un archivo '
     '.meta.json con el modelVersion para verificar compatibilidad en cada carga. '
-    'El modelo actual es "ppo-v2".'
+    'El modelo actual es "ppo-v3-anticipatory".'
 )
 
 add_h2(doc, '5.3 Inferencia: get_rankings()')

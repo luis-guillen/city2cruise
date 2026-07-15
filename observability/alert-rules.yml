@@ -152,3 +152,47 @@ groups:
         annotations:
           summary: "Backup Neon no se ha completado en >24h"
           description: "El cron diario `backup.yml` no ejecutó con éxito ayer. RPO comprometido."
+
+  # ──────────────────────────────────────────────────────────────────────
+  # MLOps §4.4 — salud del modelo de IA (agente PPO)
+  # ──────────────────────────────────────────────────────────────────────
+  - name: city2cruise-model
+    interval: 1m
+    rules:
+      - alert: ModelInferenceLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(rl_inference_duration_seconds_bucket[5m]))
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "Latencia de inferencia RL p95 > 50ms"
+          description: "El agente PPO tarda más de lo esperado (<20ms). Revisar carga o degradación del servicio."
+
+      - alert: ModelServingUntrained
+        # El modelo cargado no tiene pasos de entrenamiento → arrancó con pesos sin entrenar.
+        expr: rl_model_total_timesteps == 0
+        for: 5m
+        labels:
+          severity: page
+          team: ml
+        annotations:
+          summary: "El rl_service sirve un modelo SIN entrenar"
+          description: "rl_model_total_timesteps=0. Revisar RL_MODEL_PATH y que el checkpoint entrenado esté presente."
+
+      - alert: PredictionScoreDrift
+        # La confianza media del top-1 cae de forma sostenida (posible drift de entrada).
+        expr: |
+          histogram_quantile(0.5,
+            sum by (le) (rate(rl_ranking_top_score_bucket[30m]))
+          ) < 0.2
+        for: 30m
+        labels:
+          severity: warning
+          team: ml
+        annotations:
+          summary: "Distribución de score del modelo desplazada a la baja"
+          description: "La mediana del score top-1 cae por debajo de 0.2 durante 30 min. Ejecutar scripts/drift_report.py."

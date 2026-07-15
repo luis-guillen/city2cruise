@@ -104,22 +104,52 @@ class TestGreedyBetterThanRandom:
         )
 
 
+class TestAnticipationCeiling:
+    def test_patient_beats_greedy(self, greedy_result):
+        """
+        Institutionalises the phase-2 ceiling proof: the hand-crafted
+        anticipatory heuristic (hold for a soon-to-free driver instead of
+        dispatching a distant one) must beat myopic greedy dispatch. If this
+        fails after an env change, the anticipation ceiling is gone and the
+        RL claim of the thesis no longer holds.
+        """
+        from rl_service.benchmark import run_episodes, patient_policy
+        patient = run_episodes(
+            patient_policy, N_EPISODES, seed=SEED, policy_name="patient"
+        )
+        ratio = patient.mean_reward / max(greedy_result.mean_reward, 1e-6)
+        assert ratio > 1.02, (
+            f"patient/greedy = {ratio:.3f} (need > 1.02): the anticipation "
+            "ceiling disappeared — check env load/deadline parameters"
+        )
+
+    def test_cascade_is_functional(self, greedy_result, random_result):
+        """Production-heuristic proxy lands between random and greedy."""
+        from rl_service.benchmark import run_episodes, cascade_policy
+        cascade = run_episodes(
+            cascade_policy, N_EPISODES, seed=SEED, policy_name="cascade"
+        )
+        assert cascade.mean_reward > random_result.mean_reward * 0.95
+        assert cascade.mean_reward < greedy_result.mean_reward * 1.05
+
+
 class TestRLVsGreedy:
     @pytest.mark.skipif(not HAS_SB3, reason="stable_baselines3 not installed")
     def test_rl_reward_band_vs_greedy(self, rl_result, greedy_result):
         """
-        The canonical env is deliberately greedy-friendly, so the benchmark
-        requirement is that a benchmark-trained PPO model remains competitive
-        instead of regressing badly. This still gives us a stable RL-vs-greedy
-        evidence gate for Hito 3.5.
+        Phase-2 requirement: in the anticipatory formulation the PPO agent
+        must at least match myopic greedy dispatch on held-out episodes (the
+        promotion gate additionally demands a ≥5 % margin — see
+        rl_service/validation/promotion.py). CI keeps the conservative ≥1.0
+        band so seed variance does not flake the suite.
         """
         if rl_result is None:
             pytest.skip("RL result not available")
 
         ratio = rl_result.mean_reward / max(greedy_result.mean_reward, 1e-6)
-        assert ratio >= 0.55, (
+        assert ratio >= 1.0, (
             f"RL vs greedy reward ratio = {ratio:.3f} "
-            f"(need >= 0.55). "
+            f"(need >= 1.0). "
             f"RL={rl_result.mean_reward:.2f}  greedy={greedy_result.mean_reward:.2f}"
         )
 

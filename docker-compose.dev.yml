@@ -188,7 +188,7 @@ services:
     ports:
       - "8081:8080"
     environment:
-      RL_MODEL_PATH: /tmp/cruise_dispatch_ppo
+      RL_MODEL_PATH: /app/rl_service/artifacts/cruise_dispatch_ppo
       BACKEND_URL: http://backend:9000
       TWIN_URL: http://digital_twin:8090
       TWIN_PROVIDER: ${TWIN_PROVIDER:-internal}

@@ -1,0 +1,9 @@
+{
+  "twin_avg_match_seconds": 32.5,
+  "prod_avg_match_seconds": 35.1,
+  "twin_p95_match_seconds": 78.0,
+  "prod_p95_match_seconds": 82.5,
+  "delta_avg_pct": 0.08000000000000004,
+  "delta_p95_pct": 0.057692307692307696,
+  "pass": true
+}
