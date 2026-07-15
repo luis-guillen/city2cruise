@@ -8,8 +8,7 @@ API REST + WebSocket server para la plataforma de logística de última milla Ci
 
 - Node.js >= 20
 - npm >= 9
-
-No se necesita instalar SQLite por separado; `better-sqlite3` incluye el motor como binario nativo.
+- PostgreSQL 15 + PostGIS (vía `docker-compose.dev.yml`; el backend usa un `Pool` asíncrono de `pg`)
 
 ---
 

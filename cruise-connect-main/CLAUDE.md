@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**City2Cruise — Shop&Drop Port Hub** is a last-mile logistics platform for cruise ship passengers in Barcelona. It enables tourists to drop off urban purchases at smart lockers near the port with complete traceability and real-time notifications.
+**City2Cruise — Shop&Drop Port Hub** is a last-mile logistics platform for cruise ship passengers, with Las Palmas de Gran Canaria as the primary port scenario and a Barcelona peak-demand scenario. It enables tourists to drop off urban purchases at smart lockers near the port with complete traceability and real-time notifications.
 
 Key roles: Cruise passenger (client), driver (collection & deposit), admin (user management & analytics).
 

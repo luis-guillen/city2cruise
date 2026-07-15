@@ -17,7 +17,7 @@ LR` con la arquitectura **actual** post-remediación. Componentes:
 - React 18 + Vite 6 + Tailwind + shadcn/ui.
 - Nginx 8080 (`nginx-unprivileged`, no-root, CSP/HSTS/CORS — H-1.3, H-1.4).
 - Express + Socket.IO sobre Node 20 alpine no-root (H-1.3).
-- `rl_service` (FastAPI + RLlib) — matching avanzado.
+- `rl_service` (FastAPI + Stable-Baselines3 PPO) — matching avanzado.
 - `digital_twin` (FastAPI) — simulación operacional.
 
 ### Plano de datos
