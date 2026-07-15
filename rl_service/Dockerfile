@@ -4,7 +4,7 @@ FROM python:3.11-slim AS runtime
 
 WORKDIR /app
 
-ARG TORCH_VERSION=2.11.0
+ARG TORCH_VERSION=2.12.1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
@@ -19,7 +19,9 @@ COPY . /app/rl_service
 
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
-ENV RL_MODEL_PATH=/tmp/cruise_dispatch_ppo
+# Serve the trained checkpoint baked into the image (rl_service/artifacts/),
+# NOT an empty /tmp path — otherwise the service starts with an untrained model.
+ENV RL_MODEL_PATH=/app/rl_service/artifacts/cruise_dispatch_ppo
 
 EXPOSE 8080
 

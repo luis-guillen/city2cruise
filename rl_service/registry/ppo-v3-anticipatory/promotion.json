@@ -1,0 +1,20 @@
+{
+  "checks": {
+    "converged": true,
+    "fidelity_pass": true,
+    "beats_random": true,
+    "above_greedy_floor": true,
+    "surpasses_greedy_margin": true
+  },
+  "reward_vs_random_pct": 0.3958,
+  "reward_vs_greedy_ratio": 1.1674,
+  "surpasses_greedy": true,
+  "promote": true,
+  "policy": {
+    "min_reward_vs_random": 0.05,
+    "greedy_floor_ratio": 0.55,
+    "surpass_greedy_ratio": 1.05,
+    "require_surpass_greedy": true
+  },
+  "notes": "Phase-2 policy (anticipatory formulation): promotion requires surpassing the greedy heuristic by the configured margin, on top of convergence, fidelity and the random baseline. In the phase-1 myopic formulation greedy was optimal by construction (thesis \u00a74.2), which this environment redesign resolved."
+}

@@ -24,6 +24,7 @@ export interface DriverRanking {
     driverId: number;
     score: number;   // RL confidence [0,1]
     rank: number;    // 0 = highest confidence
+    etaMs?: number;  // model-estimated ETA (for prediction logging / concept drift)
 }
 
 export interface RLRankingResult {
@@ -107,6 +108,7 @@ export async function getRLDriverRankingDetailed(
                 driverId: r.driverId,
                 score: r.score,
                 rank: r.rank,
+                etaMs: r.etaMs,
             })),
             modelVersion: data.modelVersion ?? null,
             inferenceMs: typeof data.inferenceMs === 'number' ? data.inferenceMs : null,

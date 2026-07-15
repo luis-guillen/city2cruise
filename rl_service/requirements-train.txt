@@ -1,0 +1,8 @@
+# Training / experiment-tracking deps — NOT installed in the serving container.
+# Used by train_tfm.py (canonical training), figure generation and MLflow tracking.
+# Install: pip install -r rl_service/requirements-train.txt
+-r requirements.txt
+
+tensorboard==2.21.0     # SB3 tensorboard_log during training
+mlflow==3.14.0          # experiment tracking (params/metrics/artifacts) — local file store
+matplotlib==3.11.0      # convergence / benchmark / reality-gap figures

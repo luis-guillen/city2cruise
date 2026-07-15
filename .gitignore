@@ -34,13 +34,21 @@ htmlcov/
 rl_service/artifacts/*
 !rl_service/artifacts/cruise_dispatch_ppo.zip
 !rl_service/artifacts/cruise_dispatch_ppo.meta.json
+!rl_service/artifacts/cruise_dispatch_ppo_benchmark_v3.zip
 !rl_service/artifacts/rewards.csv
 !rl_service/artifacts/benchmark.json
 !rl_service/artifacts/fidelity.json
 !rl_service/artifacts/summary.json
+!rl_service/artifacts/drift_baseline.json
 
 # TensorBoard logs & TS incremental build cache
 **/tb/
 *.tfevents.*
 *.tsbuildinfo
+
+# MLflow local experiment store
+mlruns/
+
+# Model registry: track the index + cards + metadata, ignore the model blobs
+rl_service/registry/**/model.zip
 

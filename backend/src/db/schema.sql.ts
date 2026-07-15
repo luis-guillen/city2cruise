@@ -359,6 +359,23 @@ CREATE TABLE IF NOT EXISTS telemetry_state_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_telemetry_snapshots_created_at ON telemetry_state_snapshots(created_at DESC);
 
+-- MLOps §4.4 — logs each RL ranking prediction for audit (EU AI Act Art. 12) and
+-- as the source for concept-drift monitoring (predicted vs realised match time).
+CREATE TABLE IF NOT EXISTS rl_inference_log (
+  id SERIAL PRIMARY KEY,
+  request_id INTEGER,
+  model_version TEXT,
+  inference_ms DOUBLE PRECISION,
+  top_driver_id INTEGER,
+  top_score DOUBLE PRECISION,
+  predicted_eta_ms DOUBLE PRECISION,
+  realized_match_seconds DOUBLE PRECISION,
+  rankings JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_rl_inference_log_created_at ON rl_inference_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rl_inference_log_request ON rl_inference_log(request_id);
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- HITO 4.3.3 — Indices compuestos para queries frecuentes (Phase 4 audit)
 -- ═══════════════════════════════════════════════════════════════════════════

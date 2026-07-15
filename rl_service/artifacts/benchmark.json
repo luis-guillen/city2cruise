@@ -1,27 +1,57 @@
 {
   "greedy": {
-    "mean_reward": 295.4897289925575,
-    "p95_reward": 570.2148060418232,
-    "mean_assign_seconds": 503.5810977541525,
+    "mean_reward": 1558.585719485511,
+    "p95_reward": 2846.5365237997175,
+    "mean_assign_seconds": 401.66362421731014,
     "mean_queue_left": 0.0,
-    "mean_urgency_loss": 0.0
+    "mean_urgency_loss": 0.0,
+    "mean_expired": 2.812,
+    "mean_utilization": 0.5944581677955837
   },
   "random": {
-    "mean_reward": 151.33507606473688,
-    "p95_reward": 321.84545285172555,
-    "mean_assign_seconds": 829.7540189003054,
+    "mean_reward": 1303.532020868133,
+    "p95_reward": 2702.986767619117,
+    "mean_assign_seconds": 429.33166850598013,
     "mean_queue_left": 0.0,
-    "mean_urgency_loss": 0.0
+    "mean_urgency_loss": 0.0,
+    "mean_expired": 3.633,
+    "mean_utilization": 0.6042813102873005
+  },
+  "cascade": {
+    "mean_reward": 1349.0827846901834,
+    "p95_reward": 2732.033619996237,
+    "mean_assign_seconds": 417.51148594372864,
+    "mean_queue_left": 0.0,
+    "mean_urgency_loss": 0.0,
+    "mean_expired": 3.541,
+    "mean_utilization": 0.5974541535821407
+  },
+  "patient": {
+    "mean_reward": 1711.1546019585835,
+    "p95_reward": 2975.270113652459,
+    "mean_assign_seconds": 378.3009794907777,
+    "mean_queue_left": 0.0,
+    "mean_urgency_loss": 0.0,
+    "mean_expired": 2.35,
+    "mean_utilization": 0.572058602095018
   },
   "rl_ppo": {
-    "mean_reward": 182.68274856447226,
-    "p95_reward": 387.27180319267546,
-    "mean_assign_seconds": 793.9444076812895,
+    "mean_reward": 1819.4355425576289,
+    "p95_reward": 2985.5565603383634,
+    "mean_assign_seconds": 378.35707666888544,
     "mean_queue_left": 0.0,
-    "mean_urgency_loss": 0.0
+    "mean_urgency_loss": 0.0,
+    "mean_expired": 1.917,
+    "mean_utilization": 0.5815041567822236
   },
   "improvement": {
-    "reward_vs_greedy_pct": -0.38176278008947817,
-    "assign_time_vs_greedy_pct": -0.5765969199838631
+    "reward_vs_greedy_pct": 0.1673631548210415,
+    "assign_time_vs_greedy_pct": 0.05802503921992018,
+    "reward_vs_patient_pct": 0.06327946082435057,
+    "delta_vs_greedy_ci95": {
+      "mean_delta": 260.849823072118,
+      "ci95_low": 225.52020597091675,
+      "ci95_high": 296.4557920738446
+    }
   }
 }

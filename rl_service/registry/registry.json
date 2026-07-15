@@ -1,0 +1,39 @@
+{
+  "models": [
+    {
+      "version": "ppo-v2-canonical",
+      "createdAt": "2026-07-14T23:07:35.533952+00:00",
+      "gitSha": "9819aee",
+      "stage": "archived",
+      "metrics": {
+        "reward_ppo": 182.68,
+        "reward_greedy": 295.49,
+        "reward_random": 151.34,
+        "coeff_var": 0.0358,
+        "reality_gap_avg_pct": 0.08
+      },
+      "promotable": true,
+      "surpassesGreedy": false,
+      "path": "registry/ppo-v2-canonical"
+    },
+    {
+      "version": "ppo-v3-anticipatory",
+      "createdAt": "2026-07-15T00:26:35.772027+00:00",
+      "gitSha": null,
+      "stage": "production",
+      "metrics": {
+        "reward_ppo": 1819.44,
+        "reward_greedy": 1558.59,
+        "reward_random": 1303.53,
+        "coeff_var": 0.1497,
+        "reality_gap_avg_pct": 0.08,
+        "reward_cascade": 1349.08,
+        "reward_patient": 1711.15
+      },
+      "promotable": true,
+      "surpassesGreedy": true,
+      "path": "registry/ppo-v3-anticipatory"
+    }
+  ],
+  "production": "ppo-v3-anticipatory"
+}

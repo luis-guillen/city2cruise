@@ -1,0 +1,41 @@
+name: AI Continuous Training
+
+# MLOps §4.4 — closes the loop: drift check → decide → (re)train → gate → promote.
+# In CI this runs in --dry-run (it evaluates drift and prints the plan) so the
+# runner never mutates the registry. A real retraining run executes in a dedicated
+# environment against production telemetry (future work, §5.2).
+
+on:
+  workflow_dispatch:
+    inputs:
+      shift:
+        description: "Covariate shift to simulate drift (0 = none)"
+        default: "0.0"
+  schedule:
+    - cron: "0 5 * * 1"   # weekly, Monday 05:00 UTC (after ai-model-train)
+
+permissions:
+  contents: read
+
+jobs:
+  continuous-training:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps (CPU torch + training extras)
+        run: |
+          grep -v '^torch' rl_service/requirements.txt > /tmp/rl.txt
+          pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1"
+          pip install -r /tmp/rl.txt tensorboard==2.21.0 mlflow==3.14.0
+
+      - name: Run continuous-training pipeline (dry-run)
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          python scripts/ct_pipeline.py \
+            --shift ${{ github.event.inputs.shift || '0.0' }} \
+            --timesteps 20000 --dry-run

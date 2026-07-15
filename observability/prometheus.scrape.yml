@@ -20,3 +20,15 @@ scrape_configs:
           environment: production
     scheme: https
     # Si /metrics queda público, añade basic auth con METRICS_BASIC_AUTH_TOKEN
+
+  # MLOps §4.4 — model-serving metrics from the RL microservice.
+  - job_name: city2cruise-rl-service
+    metrics_path: /metrics/prometheus
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    static_configs:
+      - targets:
+          - rl_service:8080          # docker-compose network alias
+        labels:
+          environment: dev
+          service: rl_service

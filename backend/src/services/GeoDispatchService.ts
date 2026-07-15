@@ -79,6 +79,16 @@ async function notifyDriversInRadius(
             modelVersion: rl.modelVersion ?? undefined,
             inferenceMs: rl.inferenceMs ?? undefined,
         });
+
+        // Persist the prediction: audit trail (EU AI Act Art. 12) + concept-drift source.
+        const top = rlRankings[0];
+        db.query(
+            `INSERT INTO rl_inference_log
+               (request_id, model_version, inference_ms, top_driver_id, top_score, predicted_eta_ms, rankings)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [requestId, rl.modelVersion, rl.inferenceMs, top.driverId, top.score,
+             top.etaMs ?? null, JSON.stringify(rlRankings)],
+        ).catch((err) => logger.warn({ err, requestId }, 'rl_inference_log insert failed'));
     }
 
     for (const userId of rankedIds) {
