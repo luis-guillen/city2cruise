@@ -8,7 +8,7 @@
 #       the TORCH_VERSION build arg.
 
 # Web framework
-fastapi==0.139.0
+fastapi==0.139.1
 uvicorn[standard]==0.50.2
 
 # Data validation
