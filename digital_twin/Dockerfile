@@ -1,5 +1,5 @@
 # Hito 5.4.1 — Digital Twin: imagen Docker para Fly.io
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 WORKDIR /app
 
