@@ -704,8 +704,7 @@ async function buildPreparedBlock(params: {
     };
     const blockHash = buildBlockHash(provisionalBlock);
 
-    console.log(`[backend] Hash calculated for proposal ${proposalId}: ${blockHash}`);
-    console.log(`[backend] Hash input: ${stableStringify(provisionalBlock)}`);
+    logger.debug({ proposalId, blockHash, blockInput: stableStringify(provisionalBlock) }, 'Hash calculated for proposal');
 
     return {
         proposalId,

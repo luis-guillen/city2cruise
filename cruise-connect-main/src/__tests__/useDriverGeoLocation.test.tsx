@@ -26,13 +26,13 @@ import { useDriverGeoLocation } from '@/hooks/useDriverGeoLocation';
 
 describe('Hito 6.1.2 — useDriverGeoLocation', () => {
   let originalGeo: Geolocation | undefined;
-  const listeners = new Map<string, (...args: any[]) => void>();
+  const listeners = new Map<string, (...args: unknown[]) => void>();
 
   beforeEach(() => {
     vi.stubEnv('VITE_DEMO_MODE', 'false');
     originalGeo = navigator.geolocation;
     mocks.socket.emit.mockClear();
-    mocks.socket.on.mockImplementation((event: string, handler: (...args: any[]) => void) => {
+    mocks.socket.on.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
       listeners.set(event, handler);
     });
     mocks.socket.off.mockImplementation((event: string) => {
