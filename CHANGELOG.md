@@ -1,3 +1,9 @@
+## <small>1.0.1 (2026-07-16)</small>
+
+* fix(ci): migrate CI/E2E workflows from npm to pnpm ([1a206dc](https://github.com/luis-guillen/city2cruise/commit/1a206dc))
+* chore(ci): disable Dependabot version-update PRs ([5e82258](https://github.com/luis-guillen/city2cruise/commit/5e82258))
+* docs: add citation metadata (CITATION.cff) ([580b1ae](https://github.com/luis-guillen/city2cruise/commit/580b1ae))
+
 ## 1.0.0 (2026-07-15)
 
 * docs: add 2026-04-29 integral audit report and remediation roadmap ([f8319cb](https://github.com/luis-guillen/city2cruise/commit/f8319cb))
