@@ -21,7 +21,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@sentry/node": "^8.55.2",
+    "@sentry/node": "^10.66.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "@paralleldrive/cuid2": "^2.3.1",
     "@noble/hashes": "^1.8.0",
