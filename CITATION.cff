@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "City2Cruise — RL-Driven Port Logistics"
+type: software
+authors:
+  - family-names: "Guillén Servera"
+    given-names: "Luis"
+version: 1.0.0
+date-released: "2026-07-15"
+repository-code: "https://github.com/luis-guillen/city2cruise"
+license: MIT
