@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 COPY --chown=node:node package.json pnpm-lock.yaml .npmrc* ./
@@ -11,7 +11,7 @@ RUN pnpm run build
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 # Hito H-1.3 (S-03): runtime no-root + HEALTHCHECK.
-FROM node:20-alpine AS runtime
+FROM node:26-alpine AS runtime
 WORKDIR /app
 RUN npm install -g pnpm
 # Dependencias prod, propietario `node` (UID 1000 en la imagen oficial).
