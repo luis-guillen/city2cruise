@@ -1,3 +1,7 @@
+## <small>1.0.2 (2026-07-16)</small>
+
+* fix(ci): pin pnpm version in pnpm/action-setup ([bdb3b72](https://github.com/luis-guillen/city2cruise/commit/bdb3b72))
+
 ## <small>1.0.1 (2026-07-16)</small>
 
 * fix(ci): migrate CI/E2E workflows from npm to pnpm ([1a206dc](https://github.com/luis-guillen/city2cruise/commit/1a206dc))
