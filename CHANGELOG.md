@@ -1,3 +1,7 @@
+## <small>1.0.4 (2026-07-16)</small>
+
+* fix(ci): make pnpm audit non-blocking (npmjs.org retired the audit API) ([62b194c](https://github.com/luis-guillen/city2cruise/commit/62b194c))
+
 ## <small>1.0.3 (2026-07-16)</small>
 
 * fix(lint): resolve blocking ESLint errors surfaced by CI fix ([18c28f5](https://github.com/luis-guillen/city2cruise/commit/18c28f5))
