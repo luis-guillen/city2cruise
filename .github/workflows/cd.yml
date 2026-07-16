@@ -51,7 +51,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Backend metadata
         id: meta_b
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_BACKEND }}
           tags: |
@@ -62,7 +62,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
       - name: Frontend metadata
         id: meta_f
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_FRONTEND }}
           tags: |
