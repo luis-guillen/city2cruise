@@ -1,3 +1,7 @@
+## <small>1.0.3 (2026-07-16)</small>
+
+* fix(lint): resolve blocking ESLint errors surfaced by CI fix ([18c28f5](https://github.com/luis-guillen/city2cruise/commit/18c28f5))
+
 ## <small>1.0.2 (2026-07-16)</small>
 
 * fix(ci): pin pnpm version in pnpm/action-setup ([bdb3b72](https://github.com/luis-guillen/city2cruise/commit/bdb3b72))
