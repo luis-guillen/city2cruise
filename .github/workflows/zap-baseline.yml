@@ -31,7 +31,7 @@ jobs:
 
       - name: Run ZAP baseline scan
         if: ${{ github.event.inputs.scan_type != 'full' && github.event.inputs.scan_type != 'api' }}
-        uses: zaproxy/action-baseline@v0.13.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: ${{ github.event.inputs.target_url || 'https://city2cruise-staging-backend.fly.dev' }}
           rules_file_name: '.zap/rules.tsv'
