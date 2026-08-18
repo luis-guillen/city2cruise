@@ -4,12 +4,20 @@ import { db } from '../db/database';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
 
-// ── VAPID setup ───────────────────────────────────────────────────────────────
-webpush.setVapidDetails(
-    config.vapid.subject,
-    config.vapid.publicKey,
-    config.vapid.privateKey,
-);
+// ── VAPID setup (lazy — only if credentials present) ─────────────────────────
+// config/env.ts deja las claves vacías fuera de producción a propósito (H-1.1 S-01:
+// fail-fast solo en producción), y setVapidDetails lanza con cadenas vacías. Sin esta
+// guarda, importar este módulo tumba cualquier ruta que lo alcance en dev y en tests.
+const pushEnabled = Boolean(config.vapid.publicKey && config.vapid.privateKey);
+if (pushEnabled) {
+    webpush.setVapidDetails(
+        config.vapid.subject,
+        config.vapid.publicKey,
+        config.vapid.privateKey,
+    );
+} else {
+    logger.warn('VAPID keys not configured — Web Push notifications disabled');
+}
 
 // ── Twilio client (lazy — only if credentials present) ───────────────────────
 let twilioClient: ReturnType<typeof twilio> | null = null;
@@ -115,6 +123,7 @@ async function sendPush(
     data?: Record<string, unknown>,
 ): Promise<boolean> {
     if (subscriptions.length === 0) return false;
+    if (!pushEnabled) return false;
 
     const payload = JSON.stringify({ title, body, ...data });
     const staleEndpoints: string[] = [];
