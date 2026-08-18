@@ -7,7 +7,7 @@ import {
     capturePayment,
     refundPayment,
     getPaymentHistory,
-    stripe,
+    getStripe,
 } from '../services/PaymentService';
 import { db } from '../db/database';
 import { logAuditEvent } from '../services/AuditService';
@@ -107,7 +107,7 @@ export const stripeWebhookHandler = async (req: Request, res: Response): Promise
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let event: any;
     try {
-        event = stripe.webhooks.constructEvent(req.body as Buffer, sig, config.stripe.webhookSecret);
+        event = getStripe().webhooks.constructEvent(req.body as Buffer, sig, config.stripe.webhookSecret);
     } catch (err: any) {
         logger.warn({ message: err.message }, 'Stripe webhook signature verification failed');
         res.status(400).json({ error: `Webhook signature invalid: ${err.message}` });

@@ -36,7 +36,7 @@ jest.mock('../utils/logger', () => ({
     },
 }));
 
-import { createPaymentIntent, confirmPaymentIntent, stripe } from '../services/PaymentService';
+import { createPaymentIntent, confirmPaymentIntent, getStripe } from '../services/PaymentService';
 
 describe('Hito 6.x — payments demo mode', () => {
     beforeEach(() => {
@@ -45,7 +45,7 @@ describe('Hito 6.x — payments demo mode', () => {
     });
 
     it('createPaymentIntent devuelve un intent demo sin llamar a Stripe', async () => {
-        const createSpy = jest.spyOn(stripe.paymentIntents, 'create').mockResolvedValue({
+        const createSpy = jest.spyOn(getStripe().paymentIntents, 'create').mockResolvedValue({
             id: 'pi_real',
             client_secret: 'cs_real',
         } as any);
@@ -70,7 +70,7 @@ describe('Hito 6.x — payments demo mode', () => {
     });
 
     it('confirmPaymentIntent autoriza un intent demo sin llamar a Stripe', async () => {
-        const retrieveSpy = jest.spyOn(stripe.paymentIntents, 'retrieve').mockResolvedValue({
+        const retrieveSpy = jest.spyOn(getStripe().paymentIntents, 'retrieve').mockResolvedValue({
             id: 'pi_real',
             status: 'requires_capture',
         } as any);

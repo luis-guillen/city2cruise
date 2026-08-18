@@ -11,8 +11,8 @@ import { ServiceError } from '../utils/errors';
 // así que instanciarlo aquí tumbaba el arranque en dev y en tests. Todas las llamadas de
 // abajo están ya protegidas por config.payments.demoMode, de modo que en modo demo el
 // cliente no llega a construirse nunca.
-let stripeClient: Stripe | null = null;
-function getStripe(): Stripe {
+let stripeClient: InstanceType<typeof Stripe> | null = null;
+export function getStripe(): InstanceType<typeof Stripe> {
     if (!stripeClient) {
         stripeClient = new Stripe(config.stripe.secretKey, { apiVersion: '2026-04-22.dahlia' });
     }
@@ -343,5 +343,4 @@ export async function cancelPendingPayment(params: {
     }
 }
 
-// ── Exportar instancia stripe para el webhook handler ───────────────────────
-export { stripe };
+// El webhook handler obtiene el cliente vía getStripe() (exportado arriba).
