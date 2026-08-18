@@ -32,8 +32,11 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GIT_AUTHOR_NAME: github-actions[bot]
-          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
-          GIT_COMMITTER_NAME: github-actions[bot]
-          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+          # Los commits de versión se firman con la autoría del repositorio: es un
+          # proyecto de un solo autor y así el historial no introduce un contribuidor
+          # sintético (github-actions[bot]) en la ficha del repositorio.
+          GIT_AUTHOR_NAME: Luis Guillén Servera
+          GIT_AUTHOR_EMAIL: luisgservsp@gmail.com
+          GIT_COMMITTER_NAME: Luis Guillén Servera
+          GIT_COMMITTER_EMAIL: luisgservsp@gmail.com
         run: npx semantic-release
