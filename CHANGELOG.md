@@ -1,3 +1,7 @@
+## <small>1.0.7 (2026-08-18)</small>
+
+* fix(payments): construct the Stripe client lazily ([54dfe07](https://github.com/luis-guillen/city2cruise/commit/54dfe07))
+
 ## <small>1.0.6 (2026-08-18)</small>
 
 * fix(notifications): don't crash at import when VAPID keys are absent ([83c9804](https://github.com/luis-guillen/city2cruise/commit/83c9804))
