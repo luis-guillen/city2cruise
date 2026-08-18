@@ -6,7 +6,18 @@ import { logAuditEvent } from './AuditService';
 import { logger } from '../utils/logger';
 import { ServiceError } from '../utils/errors';
 
-const stripe = new Stripe(config.stripe.secretKey, { apiVersion: '2026-04-22.dahlia' });
+// Cliente Stripe perezoso (— only if credentials present). config/env.ts deja
+// secretKey vacía fuera de producción y el constructor de Stripe lanza con clave vacía,
+// así que instanciarlo aquí tumbaba el arranque en dev y en tests. Todas las llamadas de
+// abajo están ya protegidas por config.payments.demoMode, de modo que en modo demo el
+// cliente no llega a construirse nunca.
+let stripeClient: Stripe | null = null;
+function getStripe(): Stripe {
+    if (!stripeClient) {
+        stripeClient = new Stripe(config.stripe.secretKey, { apiVersion: '2026-04-22.dahlia' });
+    }
+    return stripeClient;
+}
 const DEMO_INTENT_PREFIX = 'demo_pi_';
 const DEMO_CLIENT_SECRET_PREFIX = 'demo_';
 
@@ -108,7 +119,7 @@ export async function createPaymentIntent(params: {
     }
 
     // Auth-and-capture: capture_method = 'manual' → solo autoriza, no cobra
-    const intent = await stripe.paymentIntents.create({
+    const intent = await getStripe().paymentIntents.create({
         amount: amountCents,
         currency,
         capture_method: 'manual',
@@ -163,7 +174,7 @@ export async function confirmPaymentIntent(params: {
         return { status: 'AUTHORIZED' };
     }
 
-    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const intent = await getStripe().paymentIntents.retrieve(paymentIntentId);
 
     if (intent.status === 'requires_capture') {
         await db.query(
@@ -206,7 +217,7 @@ export async function capturePayment(params: {
     }
 
     if (!config.payments.demoMode && !isDemoPaymentIntentId(payment.stripe_payment_intent_id)) {
-        await stripe.paymentIntents.capture(payment.stripe_payment_intent_id);
+        await getStripe().paymentIntents.capture(payment.stripe_payment_intent_id);
     }
 
     await db.query(
@@ -247,7 +258,7 @@ export async function refundPayment(params: {
 
     const refund = (config.payments.demoMode || isDemoPaymentIntentId(payment.stripe_payment_intent_id))
         ? { id: `demo_refund_${randomUUID().replace(/-/g, '')}` }
-        : await stripe.refunds.create({
+        : await getStripe().refunds.create({
             payment_intent: payment.stripe_payment_intent_id,
             reason: 'requested_by_customer',
             metadata: { requestId: String(requestId), reason },
@@ -323,7 +334,7 @@ export async function cancelPendingPayment(params: {
     } else {
         // Todavía PENDING → cancelar el intent directamente
         if (!config.payments.demoMode && !isDemoPaymentIntentId(payment.stripe_payment_intent_id)) {
-            await stripe.paymentIntents.cancel(payment.stripe_payment_intent_id);
+            await getStripe().paymentIntents.cancel(payment.stripe_payment_intent_id);
         }
         await db.query(
             `UPDATE payments SET status = 'CANCELLED', updated_at = NOW() WHERE id = $1`,
