@@ -4,14 +4,16 @@ name: AI Model Training
 # Promotion to production stays a deliberate, gated action (registry promote),
 # so this workflow never auto-ships a model; it produces an auditable candidate.
 
+# NOTA: el cron semanal está desactivado — el repositorio es el registro histórico del
+# TFM, no un sistema en explotación, y reentrenar cada lunes de forma indefinida no aporta
+# nada. El pipeline sigue siendo plenamente funcional a demanda (workflow_dispatch).
+
 on:
   workflow_dispatch:
     inputs:
       timesteps:
         description: "PPO training timesteps"
         default: "20000"
-  schedule:
-    - cron: "0 4 * * 1"   # weekly, Monday 04:00 UTC
 
 permissions:
   contents: read
@@ -23,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install deps (CPU torch + training extras)
         run: |

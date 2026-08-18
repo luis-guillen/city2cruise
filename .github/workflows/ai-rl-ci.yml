@@ -87,23 +87,31 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: |
             rl_service/requirements.txt
             digital_twin/requirements.txt
-      - name: Install dependencies
+      # rl_service y digital_twin fijan versiones EXACTAS incompatibles entre sí
+      # (fastapi, uvicorn, pydantic, httpx), así que instalarlos en el mismo entorno
+      # aborta con ResolutionImpossible. Cada servicio va en su propio venv.
+      - name: Install rl_service deps
         run: |
+          python -m venv /tmp/venv-rl
           grep -v '^torch' rl_service/requirements.txt > /tmp/rl_service.requirements.txt
-          pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1"
-          pip install -r /tmp/rl_service.requirements.txt -r digital_twin/requirements.txt pytest
+          /tmp/venv-rl/bin/pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1"
+          /tmp/venv-rl/bin/pip install -r /tmp/rl_service.requirements.txt pytest
+      - name: Install digital_twin deps
+        run: |
+          python -m venv /tmp/venv-twin
+          /tmp/venv-twin/bin/pip install -r digital_twin/requirements.txt pytest
       - name: Test rl_service
-        run: python -m pytest rl_service/tests/ rl_service/validation/tests/ -v
+        run: /tmp/venv-rl/bin/python -m pytest rl_service/tests/ rl_service/validation/tests/ -v
       - name: Test digital_twin
-        run: python -m pytest digital_twin/tests/ -v
+        run: /tmp/venv-twin/bin/python -m pytest digital_twin/tests/ -v
       - name: Release gate
         run: |
-          python scripts/validate_ai_release.py \
+          /tmp/venv-rl/bin/python scripts/validate_ai_release.py \
             --log-dir rl_service/validation/fixtures \
             --twin-metrics rl_service/validation/fixtures/twin_metrics.json \
             --prod-metrics rl_service/validation/fixtures/prod_metrics.json
@@ -200,7 +208,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: 'pip'
       - name: Install smoke deps
         run: pip install httpx pydantic

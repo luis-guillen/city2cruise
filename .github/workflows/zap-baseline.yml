@@ -1,9 +1,10 @@
 name: Security — OWASP ZAP Baseline
 
+# NOTA: el entorno de staging (Fly.io) se desmanteló tras la defensa del TFM, así que no
+# hay objetivo que escanear. El workflow se conserva como referencia del control DAST,
+# pero el cron semanal está desactivado: solo se ejecuta a mano indicando una target_url.
+
 on:
-  schedule:
-    # Semanal lunes 04:00 UTC
-    - cron: '0 4 * * 1'
   workflow_dispatch:
     inputs:
       target_url:

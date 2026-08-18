@@ -196,7 +196,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: digital_twin/requirements.txt
       - name: Install
@@ -217,7 +217,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - name: Install minimal deps (only what twin_bridge needs)
         run: pip install httpx pytest pydantic
       - name: Test twin bridge

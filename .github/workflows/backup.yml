@@ -1,9 +1,11 @@
 name: Backup (Neon snapshots)
 
+# NOTA: la infraestructura (Neon) se desmanteló tras la defensa del TFM y los secrets
+# ya no existen. El workflow se conserva como referencia del pipeline de respaldo, pero
+# el cron diario está desactivado: solo se ejecuta a mano (workflow_dispatch) y requiere
+# reponer NEON_API_KEY, NEON_PROJECT_ID_PROD y SLACK_WEBHOOK_URL.
+
 on:
-  schedule:
-    # Diario a las 03:00 UTC
-    - cron: '0 3 * * *'
   workflow_dispatch:
 
 permissions:

@@ -1,9 +1,12 @@
 name: CD
 
+# NOTA: la infraestructura de despliegue (Fly.io staging y producción) se desmanteló tras
+# la defensa del TFM y los secrets ya no existen. El workflow se conserva íntegro como
+# referencia del pipeline de entrega (GHCR + SBOM + Trivy + cosign + Fly.io), pero el
+# disparo automático en cada push está desactivado: solo se ejecuta a mano y requiere
+# reponer FLY_API_TOKEN_STAGING, FLY_API_TOKEN_PROD y SLACK_WEBHOOK_URL.
+
 on:
-  push:
-    branches: [main]
-    tags: ['v*.*.*']
   workflow_dispatch:
     inputs:
       target:

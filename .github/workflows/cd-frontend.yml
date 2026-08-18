@@ -1,9 +1,11 @@
 name: CD Frontend (Cloudflare Pages)
 
+# NOTA: el proyecto de Cloudflare Pages se desmanteló tras la defensa del TFM y los
+# secrets ya no existen. El workflow se conserva como referencia del despliegue del
+# frontend, pero el disparo automático en cada push está desactivado: solo se ejecuta a
+# mano y requiere reponer CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID y VITE_SENTRY_DSN.
+
 on:
-  push:
-    branches: [main]
-    paths: ['cruise-connect-main/**', '.github/workflows/cd-frontend.yml']
   workflow_dispatch:
 
 permissions:
