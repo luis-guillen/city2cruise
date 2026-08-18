@@ -1,3 +1,7 @@
+## <small>1.0.5 (2026-08-18)</small>
+
+* fix(ci): run on Python 3.12 and stop scheduling pipelines for decommissioned infra ([90d3116](https://github.com/luis-guillen/city2cruise/commit/90d3116))
+
 ## <small>1.0.4 (2026-07-16)</small>
 
 * fix(ci): make pnpm audit non-blocking (npmjs.org retired the audit API) ([62b194c](https://github.com/luis-guillen/city2cruise/commit/62b194c))
