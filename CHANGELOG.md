@@ -1,3 +1,7 @@
+## <small>1.0.8 (2026-08-18)</small>
+
+* fix(payments): export getStripe() instead of an eager instance ([710f8ac](https://github.com/luis-guillen/city2cruise/commit/710f8ac))
+
 ## <small>1.0.7 (2026-08-18)</small>
 
 * fix(payments): construct the Stripe client lazily ([54dfe07](https://github.com/luis-guillen/city2cruise/commit/54dfe07))
