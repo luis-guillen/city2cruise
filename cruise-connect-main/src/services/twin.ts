@@ -60,6 +60,7 @@ export interface TwinSnapshot {
 
 export interface RLRankingEntry {
   driverId: number;
+  driverName?: string;
   score: number;
   rank: number;
 }

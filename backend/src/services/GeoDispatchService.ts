@@ -73,9 +73,17 @@ async function notifyDriversInRadius(
     // Advisory data consumed by the admin-only ControlTowerPage; passengers/drivers
     // ignore the event. Only emitted when the RL agent actually produced a ranking.
     if (rlRankings.length > 0) {
+        // Driver names so the Control Tower shows who, not just an id
+        const names = new Map<number, string>();
+        await db.query<{ id: number; name: string }>(
+            'SELECT id, name FROM users WHERE id = ANY($1)',
+            [rlRankings.map(r => r.driverId)],
+        ).then(({ rows }) => rows.forEach(row => names.set(row.id, row.name)))
+            .catch((err) => logger.warn({ err, requestId }, 'rl:rankings driver names lookup failed'));
+
         emitEvent('rl:rankings', {
             requestId,
-            rankings: rlRankings.map(r => ({ driverId: r.driverId, score: r.score, rank: r.rank })),
+            rankings: rlRankings.map(r => ({ driverId: r.driverId, driverName: names.get(r.driverId), score: r.score, rank: r.rank })),
             modelVersion: rl.modelVersion ?? undefined,
             inferenceMs: rl.inferenceMs ?? undefined,
         });

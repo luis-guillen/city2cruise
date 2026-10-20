@@ -127,7 +127,7 @@ export function RLRankingTable({ requestId }: { requestId: number | null }) {
             {latest.rankings.map((entry) => (
               <tr key={entry.driverId}>
                 <td style={{ padding: '0.35rem 0' }}>{entry.rank + 1}</td>
-                <td style={{ padding: '0.35rem 0' }}>#{entry.driverId}</td>
+                <td style={{ padding: '0.35rem 0' }}>{entry.driverName ?? `#${entry.driverId}`}</td>
                 <td style={{ padding: '0.35rem 0' }}>{entry.score.toFixed(3)}</td>
               </tr>
             ))}

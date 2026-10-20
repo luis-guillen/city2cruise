@@ -321,6 +321,8 @@ export default function ControlTowerPage() {
         <MapContainer
           center={DEFAULT_CENTER}
           zoom={13}
+          // Scrolling the page over the map must not zoom it out
+          scrollWheelZoom={false}
           style={{ height: "100%", width: "100%" }}
           aria-label="Mapa Torre de Control con drivers y lockers"
         >
