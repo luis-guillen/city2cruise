@@ -1,12 +1,12 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10
 COPY package.json pnpm-lock.yaml .npmrc* ./
 RUN pnpm install --prod --frozen-lockfile
 
 FROM node:22-alpine AS builder
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10
 COPY package.json pnpm-lock.yaml .npmrc* ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY tsconfig.json ./
