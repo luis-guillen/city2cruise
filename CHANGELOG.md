@@ -1,3 +1,9 @@
+## <small>1.0.9 (2026-10-21)</small>
+
+* Merge pull request #30 from luis-guillen/fix/torre-control-ranking-ia ([6ba580c](https://github.com/luis-guillen/city2cruise/commit/6ba580c)), closes [#30](https://github.com/luis-guillen/city2cruise/issues/30)
+* fix(control-tower): ranking IA visible con nombres y mapa sin zoom con la rueda ([5d76155](https://github.com/luis-guillen/city2cruise/commit/5d76155))
+* chore(release): sign version commits with the repository author ([c7c60ba](https://github.com/luis-guillen/city2cruise/commit/c7c60ba))
+
 ## <small>1.0.8 (2026-08-18)</small>
 
 * fix(payments): export getStripe() instead of an eager instance ([710f8ac](https://github.com/luis-guillen/city2cruise/commit/710f8ac))
