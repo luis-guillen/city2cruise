@@ -89,7 +89,8 @@ export async function computeDemandDensity(epsM = 500, minPts = 2): Promise<Dema
                 id,
                 latitude,
                 longitude,
-                ST_ClusterDBSCAN(pickup_location_geo, $1, $2) OVER () AS cluster_id
+                -- ST_ClusterDBSCAN only accepts geometry: project to metres (EPSG:3857) so eps stays in metres
+                ST_ClusterDBSCAN(ST_Transform(pickup_location_geo::geometry, 3857), eps => $1::float8, minpoints => $2::int) OVER () AS cluster_id
             FROM pickup_requests
             WHERE status IN ('REQUESTED', 'ACCEPTED', 'CONFIRMATION_PENDING')
               AND pickup_location_geo IS NOT NULL
