@@ -1,3 +1,8 @@
+## <small>1.0.10 (2026-10-21)</small>
+
+* Merge pull request #31 from luis-guillen/fix/docker-pnpm-10 ([4f30d5f](https://github.com/luis-guillen/city2cruise/commit/4f30d5f)), closes [#31](https://github.com/luis-guillen/city2cruise/issues/31)
+* build(docker): fija pnpm 10 en los Dockerfiles ([84bb1f9](https://github.com/luis-guillen/city2cruise/commit/84bb1f9))
+
 ## <small>1.0.9 (2026-10-21)</small>
 
 * Merge pull request #30 from luis-guillen/fix/torre-control-ranking-ia ([6ba580c](https://github.com/luis-guillen/city2cruise/commit/6ba580c)), closes [#30](https://github.com/luis-guillen/city2cruise/issues/30)
