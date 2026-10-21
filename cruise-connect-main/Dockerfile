@@ -3,7 +3,7 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10
 # Declare build arguments
 ARG VITE_API_URL
 ARG VITE_SOCKET_URL

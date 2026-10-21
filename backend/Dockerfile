@@ -3,7 +3,7 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10
 COPY --chown=node:node package.json pnpm-lock.yaml .npmrc* ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY --chown=node:node . .
@@ -13,7 +13,7 @@ RUN pnpm run build
 # Hito H-1.3 (S-03): runtime no-root + HEALTHCHECK.
 FROM node:20-alpine AS runtime
 WORKDIR /app
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10
 # Dependencias prod, propietario `node` (UID 1000 en la imagen oficial).
 COPY --chown=node:node package.json pnpm-lock.yaml .npmrc* ./
 RUN pnpm install --prod --frozen-lockfile && pnpm store prune
