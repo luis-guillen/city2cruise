@@ -35,6 +35,13 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Un 401 de login/registro significa credenciales incorrectas, no una
+    // sesión caducada: no hay nada que renovar y el usuario debe ver el
+    // mensaje del backend ("Credenciales incorrectas"), no el del refresh.
+    if (/\/auth\/(login|register|refresh)$/.test(originalRequest?.url ?? '')) {
+      return Promise.reject(error);
+    }
+
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
         pendingQueue.push({ resolve, reject });

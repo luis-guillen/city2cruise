@@ -113,4 +113,17 @@ describe('Hito 6.1.3 — services/api', () => {
     window.removeEventListener('auth:logout', listener);
     postSpy.mockRestore();
   });
+
+  it('401 en /auth/login NO intenta refresh y propaga el error del backend', async () => {
+    const postSpy = vi.spyOn(axios, 'post');
+    mock.onPost('/auth/login').reply(401, {
+      error: { code: 'UNAUTHORIZED', message: 'Credenciales incorrectas' },
+    });
+
+    await expect(loginUser('a@b.c', 'wrong')).rejects.toMatchObject({
+      response: { status: 401, data: { error: { message: 'Credenciales incorrectas' } } },
+    });
+    expect(postSpy).not.toHaveBeenCalled();
+    postSpy.mockRestore();
+  });
 });

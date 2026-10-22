@@ -1,58 +1,267 @@
 name: E2E (Playwright)
 
+# Los E2E levantan todo lo que necesitan dentro del runner:
+#   PostgreSQL+PostGIS y Redis (services), 3 validadores del ledger de custodia,
+#   el backend (Express + Socket.IO) y el frontend (vite preview), y corren
+#   Playwright contra ellos. Ya no dependen de un staging externo.
+#
+# workflow_dispatch con base_url (+ backend_url) permite apuntar a un entorno
+# desplegado en vez de levantar el stack local.
+
 on:
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
     inputs:
       base_url:
-        description: 'BASE_URL del frontend (vacío = build local)'
+        description: 'BASE_URL del frontend (vacío = levantar el stack en el runner)'
         required: false
         default: ''
+      backend_url:
+        description: 'URL del backend cuando se usa base_url (p. ej. https://api.ejemplo.com)'
+        required: false
+        default: ''
+      update_snapshots:
+        description: 'Regenerar las capturas de visual regression (se suben como artefacto)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  # true → stack local en el runner; false → entorno externo (base_url)
+  LOCAL_STACK: ${{ github.event.inputs.base_url == '' }}
 
 jobs:
   e2e:
     name: Playwright (chromium + firefox + webkit)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: ./cruise-connect-main
+    timeout-minutes: 45
+    # Imagen oficial de Playwright: trae los navegadores y sus librerías de
+    # sistema, así no se depende de apt en el runner (el mirror de Ubuntu de
+    # Azure llegó a tardar >15 min en "playwright install --with-deps").
+    # La versión DEBE coincidir con @playwright/test del lockfile del frontend
+    # (lo comprueba el paso "Check Playwright version"). Al subir Playwright,
+    # actualizar aquí y regenerar las capturas (workflow_dispatch → update_snapshots).
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      options: --user 1001
+    services:
+      postgres:
+        image: postgis/postgis:15-3.3-alpine
+        env:
+          POSTGRES_DB: cruise_connect
+          POSTGRES_USER: cruise
+          POSTGRES_PASSWORD: cruise_secret
+        options: >-
+          --health-cmd "pg_isready -U cruise -d cruise_connect"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # ── Secretos de usar y tirar SOLO para este runner efímero (no son reales) ──
+      E2E_AUDIT_HMAC_SECRET: e2e_ci_audit_hmac_secret_not_a_real_secret_32b
+      E2E_VALIDATOR_KEY: e2e_ci_validator_key_not_a_real_secret
+      PW_IMAGE_VERSION: '1.60.0'
     steps:
       - uses: actions/checkout@v4
+      # En jobs con container, github.workspace es la ruta del host; se usa la
+      # variable de entorno del propio contenedor.
+      - name: Paths
+        run: echo "E2E_LOGS=$GITHUB_WORKSPACE/e2e-logs" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:
           version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-          cache-dependency-path: cruise-connect-main/pnpm-lock.yaml
-      - name: Install
+          cache-dependency-path: |
+            cruise-connect-main/pnpm-lock.yaml
+            backend/pnpm-lock.yaml
+            validator/pnpm-lock.yaml
+
+      # ── Validadores del ledger de custodia (3 nodos, quórum 2/3) ──────────
+      - name: Validators — install + build
+        if: env.LOCAL_STACK == 'true'
+        working-directory: ./validator
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - name: Validators — start (4001-4003)
+        if: env.LOCAL_STACK == 'true'
+        working-directory: ./validator
+        run: |
+          mkdir -p "$E2E_LOGS"
+          for i in 1 2 3; do
+            id="ledger-$(echo abc | cut -c$i)"
+            port=$((4000 + i))
+            VALIDATOR_ID="$id" VALIDATOR_PORT="$port" \
+            AUDIT_HMAC_SECRET="$E2E_AUDIT_HMAC_SECRET" \
+            VALIDATOR_INTERNAL_KEY="$E2E_VALIDATOR_KEY" \
+            LEDGER_DATA_DIR="$RUNNER_TEMP/$id" NODE_ENV=development \
+              nohup node dist/index.js > "$E2E_LOGS/$id.log" 2>&1 &
+          done
+
+      # ── Backend ────────────────────────────────────────────────────────────
+      - name: Backend — install + build
+        if: env.LOCAL_STACK == 'true'
+        working-directory: ./backend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - name: Backend — start (9000)
+        if: env.LOCAL_STACK == 'true'
+        working-directory: ./backend
+        env:
+          # NODE_ENV=test desactiva los rate limiters por IP (rateLimiter.ts →
+          # skipInTest): todos los navegadores de la suite salen de 127.0.0.1 y
+          # agotarían el límite global de 100 req/min. El resto del backend se
+          # comporta igual que en dev (CORS, demo de pagos, seed, sockets).
+          NODE_ENV: test
+          PORT: '9000'
+          DATABASE_URL: postgres://cruise:cruise_secret@postgres:5432/cruise_connect
+          REDIS_URL: redis://redis:6379
+          FRONTEND_URL: http://127.0.0.1:4173
+          JWT_SECRET: e2e_ci_jwt_secret_not_a_real_secret_32bytes_min
+          REFRESH_TOKEN_SECRET: e2e_ci_refresh_secret_not_a_real_secret_32bytes
+          AUDIT_HMAC_SECRET: ${{ env.E2E_AUDIT_HMAC_SECRET }}
+          FIELD_ENCRYPTION_KEY: e2e_ci_field_enc_key_32bytes_xx!
+          PAYMENTS_DEMO_MODE: 'true'
+          # El login throttle (por IP, en BD) no depende de NODE_ENV; el test de
+          # credenciales inválidas corre en 4 proyectos (+ reintentos).
+          LOGIN_MAX_FAILURES: '50'
+          VALIDATOR_INTERNAL_KEY: ${{ env.E2E_VALIDATOR_KEY }}
+          VALIDATOR_LEDGER_A_URL: http://127.0.0.1:4001
+          VALIDATOR_LEDGER_B_URL: http://127.0.0.1:4002
+          VALIDATOR_LEDGER_C_URL: http://127.0.0.1:4003
+          # Sin rl_service ni digital_twin en E2E: el backend hace fallback
+          # (ranking por distancia) y la Torre de Control muestra «Twin no responde».
+          RL_ROUTING_ENABLED: 'false'
+          LOG_LEVEL: info
+        run: nohup node dist/index.js > "$E2E_LOGS/backend.log" 2>&1 &
+      - name: Wait for validators + backend
+        if: env.LOCAL_STACK == 'true'
+        run: |
+          # La imagen de Playwright no trae curl: se usa fetch de Node.
+          probe() { node -e "fetch(process.argv[1]).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" "$1"; }
+          wait_for() {
+            for _ in $(seq 1 60); do
+              if probe "$1"; then echo "OK $1"; return 0; fi
+              sleep 2
+            done
+            echo "::error::$1 no responde"; return 1
+          }
+          wait_for http://127.0.0.1:4001/health
+          wait_for http://127.0.0.1:4002/health
+          wait_for http://127.0.0.1:4003/health
+          wait_for http://127.0.0.1:9000/ready
+          node -e "fetch('http://127.0.0.1:9000/ready').then(r=>r.text()).then(console.log)"
+      - name: Seed — taquillas extra para la suite
+        if: env.LOCAL_STACK == 'true'
+        working-directory: ./backend
+        # El seed crea 20 taquillas y cada solicitud reserva una. La suite (4
+        # proyectos + reintentos) puede crear más de 20 solicitudes.
+        # (Sin psql en la imagen: se usa el driver pg del backend.)
+        run: |
+          node -e "
+            const { Client } = require('pg');
+            const c = new Client({ connectionString: 'postgres://cruise:cruise_secret@postgres:5432/cruise_connect' });
+            c.connect()
+              .then(() => c.query(\"INSERT INTO lockers (label, size_category, updated_at) SELECT 'E2E-' || lpad(i::text, 3, '0'), 'S', NOW() FROM generate_series(1, 60) AS i\"))
+              .then((r) => { console.log('lockers añadidas:', r.rowCount); return c.end(); })
+              .catch((e) => { console.error(e); process.exit(1); });"
+
+      # ── Frontend ───────────────────────────────────────────────────────────
+      - name: Frontend — install
+        working-directory: ./cruise-connect-main
         run: pnpm install --frozen-lockfile
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
-      - name: Build app
+      - name: Check Playwright version (lockfile vs imagen)
+        working-directory: ./cruise-connect-main
+        run: |
+          v=$(pnpm exec playwright --version | awk '{print $2}')
+          if [ "$v" != "$PW_IMAGE_VERSION" ]; then
+            echo "::error::@playwright/test $v ≠ imagen v$PW_IMAGE_VERSION: actualiza container.image y PW_IMAGE_VERSION en e2e.yml"
+            exit 1
+          fi
+      - name: Frontend — build (apuntando al backend local)
+        if: env.LOCAL_STACK == 'true'
+        working-directory: ./cruise-connect-main
+        env:
+          VITE_API_URL: http://127.0.0.1:9000/api
+          VITE_SOCKET_URL: http://127.0.0.1:9000
+          VITE_TWIN_URL: http://127.0.0.1:8090
+          VITE_DEMO_MODE: 'true'
         run: pnpm run build
+
       - name: Run E2E
+        working-directory: ./cruise-connect-main
         env:
           BASE_URL: ${{ github.event.inputs.base_url }}
-          BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL }}
-        run: pnpm run e2e
+          BACKEND_URL: ${{ github.event.inputs.backend_url || 'http://127.0.0.1:9000' }}
+          UPDATE_FLAG: ${{ github.event.inputs.update_snapshots == 'true' && '--update-snapshots' || '' }}
+        run: pnpm run e2e $UPDATE_FLAG
+
+      - name: Dump service logs on failure
+        if: failure() && env.LOCAL_STACK == 'true'
+        run: |
+          for f in "$E2E_LOGS"/*.log; do
+            echo "::group::$(basename "$f") (últimas 200 líneas)"
+            tail -n 200 "$f"
+            echo "::endgroup::"
+          done
+      - name: Upload service logs
+        if: always() && env.LOCAL_STACK == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-service-logs
+          path: e2e-logs
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: cruise-connect-main/e2e/.report
+          include-hidden-files: true
           retention-days: 14
+      - name: Upload test results (trazas, vídeos, capturas)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: cruise-connect-main/e2e/.results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload junit
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-junit
           path: cruise-connect-main/e2e/.results/junit.xml
+          include-hidden-files: true
           if-no-files-found: ignore
+      - name: Upload visual snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-snapshots
+          path: cruise-connect-main/e2e/tests/*-snapshots
+          if-no-files-found: ignore
+          retention-days: 7

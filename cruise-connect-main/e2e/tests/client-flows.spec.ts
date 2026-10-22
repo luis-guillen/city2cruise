@@ -3,16 +3,15 @@
  *
  * Cubre:
  *  1. Registro nuevo cliente
- *  2. Login
- *  3. Crear request con geolocalización mock (Las Palmas)
- *  4. Ver progreso request (cascade phase)
- *  5. Recibir código locker (cuando driver deposita)
- *  6. Consultar historial
+ *  2. Login (válido e inválido)
+ *  3. Crear solicitud con la ubicación demo de Las Palmas + pago demo
+ *  4. Ver progreso de la solicitud (búsqueda de conductor)
+ *  5. Consultar historial
  *
  * Requiere backend up. Si no, los tests se SKIPEAN graciosamente.
  */
 import { test, expect } from '@playwright/test';
-import { makeUser, registerAndLogin, newApiContext } from '../fixtures/auth';
+import { makeUser, registerAndLogin, newApiContext, loginViaUi } from '../fixtures/auth';
 
 const BACKEND_AVAILABLE = !!process.env.BACKEND_URL || process.env.CI === 'true';
 
@@ -23,14 +22,14 @@ test.describe('Hito 6.2.2 — Cliente: flujos críticos', () => {
     const user = makeUser('CLIENT');
     await page.goto('/');
 
-    // Cambiar a tab "Registrarse" si existe
-    const tabRegister = page.getByRole('tab', { name: /registrarse|sign up/i });
-    if (await tabRegister.count()) await tabRegister.first().click();
+    // Selector "Iniciar sesión | Registrarse" (radiogroup, sólo en modo demo)
+    await page.getByRole('radio', { name: /registrarse/i }).click();
 
-    await page.getByPlaceholder(/nombre/i).fill(user.name);
+    await page.getByPlaceholder(/tu nombre/i).fill(user.name);
     await page.getByPlaceholder(/tu@email\.com/i).fill(user.email);
     await page.getByPlaceholder(/mínimo 6 caracteres/i).fill(user.password);
-    await page.getByRole('button', { name: /registrarme|registrarse|sign up/i }).click();
+    await page.getByRole('radio', { name: /cliente/i }).click();
+    await page.getByRole('button', { name: /crear cuenta/i }).click();
 
     // Tras registro, redirige a /client
     await expect(page).toHaveURL(/\/client/);
@@ -38,14 +37,9 @@ test.describe('Hito 6.2.2 — Cliente: flujos críticos', () => {
 
   test('Login con credenciales válidas redirige al dashboard cliente', async ({ page }) => {
     const api = await newApiContext();
-    const user = makeUser('CLIENT', 'login');
-    await registerAndLogin(api, user);
+    const user = await registerAndLogin(api, makeUser('CLIENT', 'login'));
 
-    await page.goto('/');
-    await page.getByPlaceholder(/tu@email\.com/i).fill(user.email);
-    await page.getByPlaceholder(/mínimo 6 caracteres/i).fill(user.password);
-    await page.getByRole('button', { name: /iniciar sesión|login/i }).click();
-
+    await loginViaUi(page, user, /\/client/);
     await expect(page).toHaveURL(/\/client/);
   });
 
@@ -54,52 +48,40 @@ test.describe('Hito 6.2.2 — Cliente: flujos críticos', () => {
     await page.getByPlaceholder(/tu@email\.com/i).fill('noexiste@example.com');
     await page.getByPlaceholder(/mínimo 6 caracteres/i).fill('wrongpassword');
     await page.getByRole('button', { name: /iniciar sesión|login/i }).click();
-    // Toast / inline error visible
-    await expect(page.getByText(/contraseña incorrecta|inválido|invalid|unauthorized/i).first()).toBeVisible({ timeout: 5000 });
+    // Toast con el mensaje del backend ("Credenciales incorrectas")
+    await expect(
+      page.getByText(/credenciales incorrectas|contraseña incorrecta|inválido|invalid|unauthorized/i).first(),
+    ).toBeVisible({ timeout: 5000 });
+    await expect(page).not.toHaveURL(/\/client/);
   });
 
-  test('Cliente puede crear pickup request con geolocalización Las Palmas', async ({ page, context }) => {
-    await context.grantPermissions(['geolocation']);
-
+  test('Cliente puede crear pickup request con geolocalización Las Palmas', async ({ page }) => {
     const api = await newApiContext();
-    const user = makeUser('CLIENT', 'request');
-    await registerAndLogin(api, user);
+    const user = await registerAndLogin(api, makeUser('CLIENT', 'request'));
 
-    await page.goto('/');
-    await page.getByPlaceholder(/tu@email\.com/i).fill(user.email);
-    await page.getByPlaceholder(/mínimo 6 caracteres/i).fill(user.password);
-    await page.getByRole('button', { name: /iniciar sesión|login/i }).click();
-    await page.waitForURL(/\/client/);
+    await loginViaUi(page, user, /\/client/);
 
-    // Botón crear request
-    const createBtn = page.getByRole('button', { name: /solicitar|pedir recogida|crear/i }).first();
-    await expect(createBtn).toBeVisible({ timeout: 10000 });
+    // En modo demo la ubicación se autoselecciona ("Ubicación actual (GPS)")
+    // y el botón se habilita cuando hay ubicación.
+    const createBtn = page.getByRole('button', { name: /continuar al pago/i });
+    await expect(createBtn).toBeEnabled({ timeout: 10000 });
     await createBtn.click();
 
-    // Confirmar con dialog si aparece
-    const confirmBtn = page.getByRole('button', { name: /confirmar|continuar/i }).first();
-    if (await confirmBtn.count()) await confirmBtn.click();
+    // Checkout demo (sin Stripe real)
+    await page.getByRole('button', { name: /simular pago/i }).click();
 
-    // Status visible
-    await expect(page.getByText(/solicitado|requested|buscando/i).first()).toBeVisible({ timeout: 10000 });
+    // Solicitud activa buscando conductor
+    await expect(page.getByText(/estamos buscando un driver/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Solicitud activa')).toBeVisible();
   });
 
   test('Cliente ve historial vacío al inicio', async ({ page }) => {
     const api = await newApiContext();
-    const user = makeUser('CLIENT', 'hist');
-    await registerAndLogin(api, user);
+    const user = await registerAndLogin(api, makeUser('CLIENT', 'hist'));
 
-    await page.goto('/');
-    await page.getByPlaceholder(/tu@email\.com/i).fill(user.email);
-    await page.getByPlaceholder(/mínimo 6 caracteres/i).fill(user.password);
-    await page.getByRole('button', { name: /iniciar sesión|login/i }).click();
-    await page.waitForURL(/\/client/);
+    await loginViaUi(page, user, /\/client/);
 
-    // Tab historial si existe
-    const histTab = page.getByRole('tab', { name: /historial|history/i });
-    if (await histTab.count()) {
-      await histTab.first().click();
-      await expect(page.getByText(/sin historial|no hay|empty/i).first()).toBeVisible({ timeout: 5000 });
-    }
+    await page.getByRole('radio', { name: /historial/i }).click();
+    await expect(page.getByText(/sin historial/i).first()).toBeVisible({ timeout: 5000 });
   });
 });
