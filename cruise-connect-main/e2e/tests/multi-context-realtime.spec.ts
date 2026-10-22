@@ -33,14 +33,18 @@ test.describe('Hito 6.2.5 — Integración cliente↔conductor (real-time)', () 
     const client = await registerAndLogin(api, makeUser('CLIENT', 'rt-c'));
     const driver = await registerAndLogin(api, makeUser('DRIVER', 'rt-d'));
 
-    // Dos contextos aislados (cookies/localStorage separados)
+    // Dos contextos aislados (cookies/localStorage separados). Se bloquea el
+    // service worker de la PWA: las peticiones que pasan por él no las ve
+    // page.route(), y aquí hace falta simular el geocoder.
     const ctxClient = await browser.newContext({
       geolocation: { latitude: 28.1235, longitude: -15.4363 },
       permissions: ['geolocation'],
+      serviceWorkers: 'block',
     });
     const ctxDriver = await browser.newContext({
       geolocation: { latitude: 28.1240, longitude: -15.4360 },
       permissions: ['geolocation'],
+      serviceWorkers: 'block',
     });
 
     try {
