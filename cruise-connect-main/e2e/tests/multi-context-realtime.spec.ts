@@ -57,11 +57,14 @@ test.describe('Hito 6.2.5 — Integración cliente↔conductor (real-time)', () 
       // recogida con el buscador; la respuesta del geocoder (Nominatim, externo)
       // se simula con la posición del conductor.
       const pageClient = await loginInContext(ctxClient, client, /\/client/);
+      // El nombre del sitio lleva el del cliente: es lo que el conductor ve en la
+      // tarjeta y permite aceptar ESTA solicitud y no otra creada en paralelo.
+      const pickupName = `Punto E2E ${client.name}`;
       await pageClient.route('**/api/locations/search**', (route) =>
-        route.fulfill({ json: [{ displayName: 'Punto E2E junto al conductor', lat: pos.lat, lon: pos.lon }] }),
+        route.fulfill({ json: [{ displayName: pickupName, lat: pos.lat, lon: pos.lon }] }),
       );
       await pageClient.getByPlaceholder(/buscar ubicación de recogida/i).fill('Punto E2E');
-      await pageClient.getByRole('button', { name: /punto e2e junto al conductor/i }).click();
+      await pageClient.getByRole('button', { name: pickupName }).click();
 
       // Cliente crea request + pago demo
       await pageClient.getByRole('button', { name: /continuar al pago/i }).click();
@@ -69,7 +72,7 @@ test.describe('Hito 6.2.5 — Integración cliente↔conductor (real-time)', () 
       await expect(pageClient.getByText(/estamos buscando un driver/i)).toBeVisible({ timeout: 10_000 });
 
       // Driver ve el nuevo request de ESTE cliente en su panel (vía socket) y lo acepta
-      const card = pageDriver.locator('div').filter({ hasText: client.name })
+      const card = pageDriver.locator('div').filter({ hasText: pickupName })
         .filter({ has: pageDriver.getByRole('button', { name: /^aceptar$/i }) }).last();
       const acceptBtn = card.getByRole('button', { name: /^aceptar$/i });
       await expect(acceptBtn).toBeVisible({ timeout: 45_000 });

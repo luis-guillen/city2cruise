@@ -92,12 +92,18 @@ export async function newApiContext(): Promise<APIRequestContext> {
   return await request.newContext({ baseURL: API });
 }
 
-/** Login por la UI y espera a la ruta del rol. */
+/**
+ * Login por la UI y espera a la ruta del rol. Envía el formulario con Enter:
+ * en WebKit bajo carga el click a veces espera indefinidamente a que el botón
+ * esté "estable" (animación de entrada de la tarjeta). El click en el botón ya
+ * lo cubren los tests de login de client-flows.
+ */
 export async function loginViaUi(page: Page, user: TestUser, expectedPath: RegExp): Promise<void> {
   await page.goto('/');
   await page.getByPlaceholder(/tu@email\.com/i).fill(user.email);
-  await page.getByPlaceholder(/mínimo 6 caracteres/i).fill(user.password);
-  await page.getByRole('button', { name: /iniciar sesión|login/i }).click();
+  const password = page.getByPlaceholder(/mínimo 6 caracteres/i);
+  await password.fill(user.password);
+  await password.press('Enter');
   await page.waitForURL(expectedPath);
 }
 
