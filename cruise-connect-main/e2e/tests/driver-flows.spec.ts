@@ -5,12 +5,12 @@
  *  1. Login como driver
  *  2. Ver pendientes
  *  3. Aceptar pickup request
- *  4. Navegar (mapa visible)
- *  5. Confirmar handshake con código
- *  6. Depositar en locker
+ *  4. Ver el código de handshake tras aceptar
  */
 import { test, expect } from '@playwright/test';
-import { makeUser, registerAndLogin, newApiContext } from '../fixtures/auth';
+import {
+  API, makeUser, registerAndLogin, newApiContext, loginViaUi, readDriverPosition,
+} from '../fixtures/auth';
 
 const BACKEND_AVAILABLE = !!process.env.BACKEND_URL || process.env.CI === 'true';
 
@@ -19,68 +19,57 @@ test.describe('Hito 6.2.3 — Conductor: flujos críticos', () => {
 
   test('Driver login redirige a /driver dashboard', async ({ page }) => {
     const api = await newApiContext();
-    const user = makeUser('DRIVER', 'login');
-    await registerAndLogin(api, user);
+    const user = await registerAndLogin(api, makeUser('DRIVER', 'login'));
 
-    await page.goto('/');
-    await page.getByPlaceholder(/tu@email\.com/i).fill(user.email);
-    await page.getByPlaceholder(/mínimo 6 caracteres/i).fill(user.password);
-    await page.getByRole('button', { name: /iniciar sesión|login/i }).click();
+    await loginViaUi(page, user, /\/driver/);
     await expect(page).toHaveURL(/\/driver/);
   });
 
   test('Driver ve panel de pickups pendientes (lista vacía o con items)', async ({ page }) => {
     const api = await newApiContext();
-    const user = makeUser('DRIVER', 'pending');
-    await registerAndLogin(api, user);
+    const user = await registerAndLogin(api, makeUser('DRIVER', 'pending'));
 
-    await page.goto('/');
-    await page.getByPlaceholder(/tu@email\.com/i).fill(user.email);
-    await page.getByPlaceholder(/mínimo 6 caracteres/i).fill(user.password);
-    await page.getByRole('button', { name: /iniciar sesión|login/i }).click();
-    await page.waitForURL(/\/driver/);
+    await loginViaUi(page, user, /\/driver/);
 
-    // Mapa o lista visible
-    const mapOrList = page.getByRole('region', { name: /mapa|lista|pendientes/i }).first();
-    await expect(mapOrList.or(page.locator('main'))).toBeVisible();
+    await expect(page.getByText(/solicitudes pendientes \(\d+\)/i)).toBeVisible();
   });
 
   test('Driver acepta request creado por cliente vía API y aparece en su panel', async ({ page }) => {
-    const api = await newApiContext();
-    const driver = makeUser('DRIVER', 'accept');
-    await registerAndLogin(api, driver);
+    // La cascada de búsqueda reintenta cada ~17 s; dar margen.
+    test.setTimeout(90_000);
 
-    // Cliente crea un request previamente
-    const client = makeUser('CLIENT', 'src');
-    await registerAndLogin(api, client);
-    const reqResp = await api.post('/api/requests', {
+    const api = await newApiContext();
+    const driver = await registerAndLogin(api, makeUser('DRIVER', 'accept'));
+
+    // 1. El conductor entra y publica su posición (demo: punto de Las Palmas)
+    await loginViaUi(page, driver, /\/driver/);
+    const pos = await readDriverPosition(page);
+
+    // 2. Un cliente crea una solicitud justo donde está el conductor
+    const client = await registerAndLogin(api, makeUser('CLIENT', 'src'));
+    const reqResp = await api.post(`${API}/requests`, {
       headers: { Authorization: `Bearer ${client.token}` },
       data: {
-        location: 'Las Palmas centro',
-        latitude: 28.1235,
-        longitude: -15.4363,
+        pickupLocation: `E2E ${client.name}`,
+        latitude: pos.lat,
+        longitude: pos.lon,
         packageSize: 'SMALL',
       },
-      failOnStatusCode: false,
     });
-    if (!reqResp.ok()) test.skip(true, 'No se pudo crear request semilla');
+    expect(reqResp.ok(), await reqResp.text()).toBeTruthy();
 
-    await page.goto('/');
-    await page.getByPlaceholder(/tu@email\.com/i).fill(driver.email);
-    await page.getByPlaceholder(/mínimo 6 caracteres/i).fill(driver.password);
-    await page.getByRole('button', { name: /iniciar sesión|login/i }).click();
-    await page.waitForURL(/\/driver/);
-
-    // Esperar a que aparezca botón "Aceptar" o card del request
-    const acceptBtn = page.getByRole('button', { name: /aceptar|accept/i }).first();
-    await expect(acceptBtn).toBeVisible({ timeout: 15000 });
+    // 3. Le llega por socket y la acepta (la de este cliente, no otra en paralelo)
+    const card = page.locator('div').filter({ hasText: client.name })
+      .filter({ has: page.getByRole('button', { name: /^aceptar$/i }) }).last();
+    const acceptBtn = card.getByRole('button', { name: /^aceptar$/i });
+    await expect(acceptBtn).toBeVisible({ timeout: 45_000 });
     await acceptBtn.click();
 
-    // Aparece código de handshake o instrucción
-    await expect(page.getByText(/código|handshake|aceptado/i).first()).toBeVisible({ timeout: 5000 });
+    // 4. Aparece el código de handshake para el cliente
+    await expect(page.getByText(/código para el cliente/i).first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test('Driver con request asignado puede ver ETA y locker destino', async ({ page }) => {
+  test('Driver con request asignado puede ver ETA y locker destino', async () => {
     test.skip(true, 'Requiere setup completo de cascade — implementar tras 6.2.5');
   });
 });
