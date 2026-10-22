@@ -174,9 +174,29 @@ jobs:
       - name: Frontend — install
         working-directory: ./cruise-connect-main
         run: pnpm install --frozen-lockfile
+      # Navegadores cacheados por versión de Playwright; las dependencias del
+      # sistema (apt) se instalan siempre. Timeout corto: si apt se cuelga en
+      # el runner, mejor fallar en minutos que agotar los 45 del job.
+      - name: Playwright version
+        id: pw
+        working-directory: ./cruise-connect-main
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 15
         working-directory: ./cruise-connect-main
         run: pnpm exec playwright install --with-deps
+      - name: Install Playwright system deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 15
+        working-directory: ./cruise-connect-main
+        run: pnpm exec playwright install-deps
       - name: Frontend — build (apuntando al backend local)
         if: env.LOCAL_STACK == 'true'
         working-directory: ./cruise-connect-main
